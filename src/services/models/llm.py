@@ -54,7 +54,8 @@ class LLM():
 
         response = self.client.chat.completions.create(
             model=self.model_name,
-            messages=messages
+            messages=messages,
+            stream=False
         )
 
         return response.choices[0].message.content
