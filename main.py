@@ -21,7 +21,7 @@ def chatbot(llm: LLM, input_text:str, history: list, index: FAISSIndex):
         tuple: A tuple containing the AI's response and the updated conversation history.
     """
     start = time.time()
-    retrieved_chunks = index.retrieve_chunks(input_text)
+    retrieved_chunks = index.retrieve_chunks(input_text, num_chunks=5)
     context = "\n\n#####\n\n".join(retrieved_chunks)
 
     print("Time for retrieval =", time.time() - start, "seconds")

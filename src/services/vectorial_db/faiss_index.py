@@ -2,7 +2,7 @@ from faiss import IndexFlatL2, write_index, read_index
 import numpy as np
 import os
 
-from src.ingestion.chunking import text_to_chunks
+from src.ingestion.chunking.token_chunking import text_to_chunks
 
 
 class FAISSIndex():
