@@ -84,7 +84,7 @@ def chatbot(llm: LLM, input_text: str, history: list, index: FAISSIndex):
         context_parts.append(f"[Source: {source}]\n{r['chunk']}")
 
     context = "\n\n#####\n\n".join(context_parts)    
-    print("Time for retrieval =", time.time() - start, "seconds")
+    
     
     # STEP 2: GENERATION - Use LLM to generate answer with context
     start = time.time()

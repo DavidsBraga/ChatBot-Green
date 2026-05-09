@@ -134,7 +134,11 @@ class ChunkingBase(ABC):
                   return self.splitter.split_text(self.text)
               ```
         """
-        pass
+        def __init__(self):
+            self.splitter = SentenceSplitter(chunk_size=1024, chunk_overlap=200)
+              
+        def _text_splitter(self):
+            return self.splitter.split_text(self.text)
     
     @abstractmethod
     def get_chunks_length(self):

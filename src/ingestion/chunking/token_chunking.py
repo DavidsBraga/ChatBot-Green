@@ -240,36 +240,11 @@ class TokenChunking(ChunkingBase):
         raise NotImplementedError
 
 def text_to_chunks(text: str, chunk_size: int = 512) -> list[str]:
-    """
-    Convenience function to quickly chunk text using token-based strategy.
-    
-    Args:
-        text: The text to split into chunks.
-        chunk_size: The desired size of each chunk (default is 512 words).
-                   NOTE: This parameter is currently IGNORED - the function uses
-                   TokenChunking's hardcoded DEFAULT_CHUNK_SIZE (500 tokens).
-    
-    Returns:
-        list[str]: A list of text chunks.
-    
-    This is a simple wrapper around TokenChunking class for quick use.
-    Used primarily by the FAISS index ingestion pipeline.
-    
-    TODO: Fix parameter usage - actually pass chunk_size to TokenChunking:
-    ```python
-    def text_to_chunks(text: str, chunk_size: int = 512) -> list[str]:
-        chunker = TokenChunking(chunk_size=chunk_size)  # Pass parameter
-        chunks = chunker.get_chunks_from_text(text)
-        return chunks
-    ```
-    
-    TODO: Consider upgrading to a better chunking strategy using llama-index pre-built parsers.
-          See module docstring above for available options (SentenceSplitter, SemanticSplitterNodeParser, etc.)
-    """
-    chunker = TokenChunking()
+
+    from src.ingestion.chunking.sentence_chunking import SentenceChunking
+    chunker = SentenceChunking()
     chunks = chunker.get_chunks_from_text(text)
     return chunks
-
 
 # ============================================================================
 # HOW TO USE LLAMA-INDEX PRE-BUILT CHUNKING STRATEGIES
