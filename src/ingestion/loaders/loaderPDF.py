@@ -19,7 +19,7 @@ class LoaderPDF(LoaderBase):
             'producer': doc_info.producer,  
             'subject': doc_info.subject,  
             'title': doc_info.title,  
-            #'number_of_pages': len(doc_info.pages)  
+            'number_of_pages': len(doc_info.pages)  
         }
 
         self.metadata=metadata
@@ -36,3 +36,13 @@ class LoaderPDF(LoaderBase):
 
     def all_keys_have_values(self, metadata, value_check=lambda x: x is not None and x != ''):
         return all(value_check(value) for value in metadata.values())
+
+    def extract_text_by_page(self):
+        """Returns list of (page_number, text) tuples, 1-indexed."""
+        with open(self.filepath, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            pages = []
+            for page_num in range(len(reader.pages)):
+                text = reader.pages[page_num].extract_text()
+                pages.append((page_num + 1, text))  # 1-indexed page numbers
+        return pages

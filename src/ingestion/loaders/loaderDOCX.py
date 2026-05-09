@@ -37,6 +37,26 @@ class LoaderDOCX(LoaderBase):
     
     def all_keys_have_values(self, metadata, value_check=lambda x: x is not None and x != ''):
         return all(value_check(value) for value in metadata.values())
+
+    def extract_text_by_page(self):
+        """Returns list of (section_number, text) tuples split by headings."""
+        doc = Document(self.filepath)
+        sections = []
+        current_section = 1
+        current_text = ""
+
+        for paragraph in doc.paragraphs:
+            if paragraph.style.name.startswith('Heading') and current_text.strip():
+                sections.append((current_section, current_text.strip()))
+                current_section += 1
+                current_text = paragraph.text + "\n"
+            else:
+                current_text += paragraph.text + "\n"
+
+        if current_text.strip():
+            sections.append((current_section, current_text.strip()))
+
+        return sections
     
 
 if __name__=="__main__":
