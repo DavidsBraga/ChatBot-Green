@@ -614,11 +614,39 @@ def theme_style(mode: str) -> str:
     if mode == "dark":
         return f"""
         <style id="theme-mode-style">
+          html, body, body > gradio-app {{
+            background: #06140f !important;
+            color: #edf7ec !important;
+          }}
           .gradio-container {{
             background: #06140f !important;
             color: #edf7ec !important;
           }}
-          #landing-card, #auth-card, #chat-card {{
+          .gradio-container,
+          .gradio-container .main,
+          .gradio-container .wrap,
+          .gradio-container .contain,
+          .gradio-container .block,
+          .gradio-container .form,
+          .gradio-container .panel,
+          .gradio-container .tabs,
+          .gradio-container .tabitem,
+          .gradio-container .examples,
+          .gradio-container .dataset,
+          .gradio-container table,
+          .gradio-container thead,
+          .gradio-container tbody,
+          .gradio-container tr,
+          .gradio-container td,
+          .gradio-container th {{
+            background-color: #06140f !important;
+            color: #edf7ec !important;
+            border-color: rgba(134, 188, 37, 0.22) !important;
+          }}
+          #landing-card, #auth-card, #chat-card,
+          .gradio-container .block,
+          .gradio-container .form,
+          .gradio-container .panel {{
             background: #10231b !important;
             border-color: rgba(134, 188, 37, 0.28) !important;
             box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34) !important;
@@ -626,29 +654,98 @@ def theme_style(mode: str) -> str:
           #landing-brand, #chat-title {{
             color: {PRIMARY_GREEN} !important;
           }}
-          #landing-subtitle, .status-line, #theme-status {{
+          #landing-subtitle, .status-line, #theme-status,
+          .gradio-container label,
+          .gradio-container .prose,
+          .gradio-container .markdown,
+          .gradio-container .wrap,
+          .gradio-container .contain,
+          .gradio-container span,
+          .gradio-container p,
+          .gradio-container h1,
+          .gradio-container h2,
+          .gradio-container h3,
+          .gradio-container h4 {{
             color: #d8ead3 !important;
           }}
           #sidebar {{
             background: #04100c !important;
             border: 1px solid rgba(134, 188, 37, 0.24) !important;
           }}
-          textarea, input, select {{
-            background: #f8fff2 !important;
-            color: #10231b !important;
+          textarea,
+          input,
+          select,
+          #sidebar textarea,
+          #sidebar input,
+          #sidebar select,
+          #sidebar [role="textbox"],
+          #sidebar [role="combobox"],
+          .gradio-container [role="textbox"],
+          .gradio-container [role="combobox"],
+          .gradio-container [role="listbox"],
+          .gradio-container .input,
+          .gradio-container .input-container {{
+            background: #071a13 !important;
+            color: #f2ffe8 !important;
+            border-color: rgba(134, 188, 37, 0.36) !important;
           }}
-          label, .prose, .markdown, .wrap, .contain {{
-            color: #edf7ec !important;
+          textarea::placeholder,
+          input::placeholder {{
+            color: #9fb7a0 !important;
           }}
-          .secondary-action button, button.secondary-action {{
+          .gradio-container .chatbot,
+          .gradio-container .message,
+          .gradio-container .bubble-wrap,
+          .gradio-container .message-wrap,
+          .gradio-container .bot,
+          .gradio-container .user {{
+            background: #071a13 !important;
+            color: #f2ffe8 !important;
+            border-color: rgba(134, 188, 37, 0.22) !important;
+          }}
+          .gradio-container .file-preview,
+          .gradio-container .file,
+          .gradio-container .upload-container,
+          .gradio-container .empty,
+          .gradio-container .icon-wrap {{
+            background: #071a13 !important;
+            color: #f2ffe8 !important;
+            border-color: rgba(134, 188, 37, 0.28) !important;
+          }}
+          .gradio-container input[type="range"] {{
+            accent-color: {PRIMARY_GREEN} !important;
+          }}
+          .gradio-container input[type="checkbox"] {{
+            accent-color: {PRIMARY_GREEN} !important;
+          }}
+          .secondary-action,
+          .secondary-action button,
+          button.secondary-action,
+          #theme-bar button,
+          #app-shell button.secondary-action,
+          #app-shell .secondary-action button,
+          #app-shell #theme-bar button {{
             background: #193629 !important;
             border-color: rgba(134, 188, 37, 0.36) !important;
             color: #f2ffe8 !important;
           }}
-          .danger-action button, button.danger-action {{
+          .danger-action,
+          .danger-action button,
+          button.danger-action,
+          #app-shell button.danger-action,
+          #app-shell .danger-action button {{
             background: #4b2020 !important;
             border-color: #8a4848 !important;
             color: #ffe5e5 !important;
+          }}
+          #app-shell #sidebar textarea,
+          #app-shell #sidebar input,
+          #app-shell #sidebar select,
+          #app-shell #sidebar [role="textbox"],
+          #app-shell #sidebar [role="combobox"] {{
+            background: #071a13 !important;
+            color: #f2ffe8 !important;
+            border-color: rgba(134, 188, 37, 0.36) !important;
           }}
           .tabitem, .tabs, .tab-nav {{
             background: transparent !important;
