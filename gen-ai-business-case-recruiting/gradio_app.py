@@ -967,7 +967,6 @@ def create_interface() -> gr.Blocks:
         with gr.Column(elem_id="app-shell"):
             theme_override = gr.HTML(theme_style("light"))
             with gr.Row(elem_id="theme-bar"):
-                theme_status = gr.Markdown("Light theme active.", elem_id="theme-status")
                 theme_btn = gr.Button("Dark mode", elem_classes=["secondary-action"])
 
             with gr.Column(visible=True, elem_id="landing-card") as landing_page:
@@ -1101,7 +1100,7 @@ def create_interface() -> gr.Blocks:
         theme_btn.click(
             toggle_theme,
             inputs=[theme_mode],
-            outputs=[theme_mode, theme_override, theme_btn, theme_status],
+            outputs=[theme_mode, theme_override, theme_btn],
         )
 
         landing_login_btn.click(
