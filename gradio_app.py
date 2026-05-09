@@ -1,17 +1,11 @@
 """
 Gradio Web Interface for EcoGuide Chatbot.
 
-This file replaces the terminal interaction in main.py with a simple Gradio UI:
-- landing page
-- local JSON registration/login with simulated email confirmation
-- per-user conversation history
-- real RAG answers through LLM, Embeddings, FAISSIndex and document ingestion
-
-Remaining TODOs from the starter kit that are still useful after this frontend:
-- add richer source metadata in FAISS for page-level citations
-- implement product cards from sustainable_products.csv
-- add real multimodal RAG for images/charts in documents
-- add upload/re-index workflow for new documents
+This app connects the authenticated frontend to the existing RAG backend:
+- Azure OpenAI LLM and embeddings
+- FAISS retrieval with source metadata
+- CSV sustainable product recommendations
+- Local JSON login/profile/conversation storage
 """
 
 from __future__ import annotations
@@ -19,8 +13,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import secrets
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,9 +22,6 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-
-# Compatibility shim for Gradio 5.5.0 with newer huggingface_hub versions where
-# HfFolder was removed. This keeps the demo self-contained without changing deps.
 try:
     import huggingface_hub
 
@@ -85,11 +76,11 @@ LIGHT_BG = "#F6FFF2"
 
 _llm = None
 _index = None
+_csv_loader = None
 _rag_ready = False
 APP_SETTINGS = {
     "num_chunks": 5,
     "show_sources": True,
-    "chunking_strategy": "token",
     "temperature": 0.7,
 }
 
@@ -112,15 +103,6 @@ CUSTOM_CSS = f"""
   }}
 }}
 
-@keyframes ecoPulseLine {{
-  0%, 100% {{
-    box-shadow: 0 0 0 rgba(134, 188, 37, 0);
-  }}
-  50% {{
-    box-shadow: 0 0 22px rgba(134, 188, 37, 0.28);
-  }}
-}}
-
 .gradio-container {{
   background: var(--eco-bg) !important;
   color: #10231b;
@@ -132,7 +114,7 @@ CUSTOM_CSS = f"""
   margin: 0 auto;
 }}
 
-#landing-card, #auth-card {{
+#landing-card, #auth-card, #profile-card {{
   background: #ffffff;
   border: 1px solid rgba(11, 61, 46, 0.12);
   border-radius: 8px;
@@ -148,24 +130,42 @@ CUSTOM_CSS = f"""
   font-weight: 800;
   letter-spacing: 0;
   margin-bottom: 10px;
-  position: relative;
 }}
 
-#landing-brand::after {{
-  content: "";
-  display: block;
-  width: 86px;
-  height: 5px;
-  margin-top: 16px;
-  border-radius: 999px;
-  background: var(--eco-green);
-  animation: ecoPulseLine 2.4s ease-in-out infinite;
+#landing-brand span,
+#header-logo span {{
+  color: var(--eco-green);
 }}
 
 #landing-subtitle {{
   color: #2f4f43;
   font-size: 20px;
   margin-bottom: 28px;
+}}
+
+#app-header {{
+  background: #ffffff;
+  border: 1px solid rgba(11, 61, 46, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(11, 61, 46, 0.10);
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  align-items: center;
+  animation: ecoFadeIn 360ms ease-out both;
+}}
+
+#header-logo {{
+  color: var(--eco-dark);
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0;
+  white-space: nowrap;
+}}
+
+#header-actions {{
+  justify-content: flex-end;
+  gap: 10px;
 }}
 
 #sidebar {{
@@ -181,6 +181,34 @@ CUSTOM_CSS = f"""
 }}
 
 #sidebar input, #sidebar textarea, #sidebar select {{
+  color: #10231b !important;
+}}
+
+[role="listbox"],
+.gradio-container [role="listbox"],
+#sidebar [role="listbox"] {{
+  background: #ffffff !important;
+  border: 1px solid rgba(11, 61, 46, 0.18) !important;
+  box-shadow: 0 16px 34px rgba(11, 61, 46, 0.16) !important;
+}}
+
+[role="listbox"] *,
+[role="option"],
+[role="option"] *,
+.gradio-container [role="listbox"] *,
+.gradio-container [role="option"],
+.gradio-container [role="option"] *,
+#sidebar [role="listbox"] *,
+#sidebar [role="option"],
+#sidebar [role="option"] * {{
+  color: #10231b !important;
+}}
+
+[role="option"]:hover,
+[role="option"][aria-selected="true"],
+.gradio-container [role="option"]:hover,
+.gradio-container [role="option"][aria-selected="true"] {{
+  background: #eef8df !important;
   color: #10231b !important;
 }}
 
@@ -203,6 +231,12 @@ CUSTOM_CSS = f"""
   margin: 0 0 8px 0;
 }}
 
+#profile-card {{
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}}
+
 #theme-bar {{
   display: flex;
   justify-content: flex-end;
@@ -210,18 +244,11 @@ CUSTOM_CSS = f"""
   padding: 14px 0 10px 0;
 }}
 
-#theme-status {{
-  color: #315246;
-  font-size: 13px;
-  margin-right: 10px;
-}}
-
 .primary-action button, button.primary-action {{
   background: var(--eco-green) !important;
   border-color: var(--eco-green) !important;
   color: #0b1f16 !important;
   font-weight: 700 !important;
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
 }}
 
 .secondary-action button, button.secondary-action {{
@@ -229,7 +256,6 @@ CUSTOM_CSS = f"""
   border-color: rgba(11, 61, 46, 0.25) !important;
   color: var(--eco-dark) !important;
   font-weight: 650 !important;
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
 }}
 
 .danger-action button, button.danger-action {{
@@ -237,24 +263,10 @@ CUSTOM_CSS = f"""
   border-color: #e7aaaa !important;
   color: #6d1515 !important;
   font-weight: 650 !important;
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
 }}
 
-.primary-action button:hover, button.primary-action:hover,
-.secondary-action button:hover, button.secondary-action:hover,
-.danger-action button:hover, button.danger-action:hover {{
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(11, 61, 46, 0.18) !important;
-  filter: brightness(1.02);
-}}
-
-.status-line {{
-  color: #24483b;
-  font-size: 14px;
-}}
-
-#sidebar .status-line {{
-  color: #dbeed4;
+button {{
+  border-radius: 8px !important;
 }}
 
 textarea, input {{
@@ -266,22 +278,26 @@ textarea:focus, input:focus {{
   box-shadow: 0 0 0 3px rgba(134, 188, 37, 0.16) !important;
 }}
 
-button {{
-  border-radius: 8px !important;
+.status-line {{
+  color: #24483b;
+  font-size: 14px;
 }}
 
-.tabitem {{
-  animation: ecoFadeIn 260ms ease-out both;
+#sidebar .status-line {{
+  color: #dbeed4;
 }}
 
 @media (max-width: 820px) {{
   #landing-brand {{
     font-size: 42px;
   }}
-  #sidebar {{
-    min-height: auto;
+  #header-logo {{
+    font-size: 25px;
   }}
-  #chat-card {{
+  #header-actions {{
+    justify-content: flex-start;
+  }}
+  #sidebar, #chat-card {{
     min-height: auto;
   }}
 }}
@@ -331,8 +347,7 @@ def hash_password(password: str, salt: str) -> str:
 
 
 def verify_password(password: str, user: dict[str, Any]) -> bool:
-    salt = user.get("salt", "")
-    return hash_password(password, salt) == user.get("password_hash")
+    return hash_password(password, user.get("salt", "")) == user.get("password_hash")
 
 
 def ensure_demo_user() -> None:
@@ -361,9 +376,8 @@ def title_from_message(message: str) -> str:
 def get_user_conversations(user_email: str | None) -> list[dict[str, Any]]:
     email = normalize_email(user_email)
     conversations = [
-        conversation
-        for conversation in load_conversations()
-        if normalize_email(conversation.get("user_email")) == email
+        item for item in load_conversations()
+        if normalize_email(item.get("user_email")) == email
     ]
     return sorted(conversations, key=lambda item: item.get("updated_at", ""), reverse=True)
 
@@ -377,11 +391,10 @@ def get_conversation(conversation_id: str | None, user_email: str | None) -> dic
 
 
 def conversation_choices(user_email: str | None) -> list[tuple[str, str]]:
-    choices = []
-    for conversation in get_user_conversations(user_email):
-        title = conversation.get("title") or "New chat"
-        choices.append((title, conversation["id"]))
-    return choices
+    return [
+        (conversation.get("title") or "New chat", conversation["id"])
+        for conversation in get_user_conversations(user_email)
+    ]
 
 
 def conversation_dropdown_update(user_email: str | None, selected_id: str | None = None):
@@ -418,80 +431,14 @@ def update_conversation(conversation: dict[str, Any]) -> None:
     save_conversations(conversations)
 
 
-def rename_conversation(conversation_id: str | None, user_email: str | None, new_title: str):
-    conversation = get_conversation(conversation_id, user_email)
-    if not conversation:
-        return (
-            conversation_dropdown_update(user_email),
-            conversation_id,
-            gr.update(value=new_title or ""),
-            "Select a conversation to rename.",
-        )
-
-    title = (new_title or "").strip()
-    if not title:
-        return (
-            conversation_dropdown_update(user_email, conversation_id),
-            conversation_id,
-            gr.update(value=conversation.get("title", "")),
-            "Chat name cannot be empty.",
-        )
-
-    conversation["title"] = title
-    conversation["updated_at"] = utc_now()
-    update_conversation(conversation)
-    return (
-        conversation_dropdown_update(user_email, conversation_id),
-        conversation_id,
-        gr.update(value=title),
-        "Chat renamed.",
-    )
-
-
-def delete_conversation(conversation_id: str | None, user_email: str | None):
-    email = normalize_email(user_email)
-    conversations = load_conversations()
-    conversations = [
-        item
-        for item in conversations
-        if not (item.get("id") == conversation_id and normalize_email(item.get("user_email")) == email)
-    ]
-    save_conversations(conversations)
-
-    remaining = get_user_conversations(email)
-    next_conversation = remaining[0] if remaining else None
-    next_id = next_conversation["id"] if next_conversation else None
-    messages = next_conversation.get("messages", []) if next_conversation else []
-    title = next_conversation.get("title", "") if next_conversation else ""
-
-    return (
-        messages,
-        next_id,
-        conversation_dropdown_update(email, next_id),
-        gr.update(value=title),
-        "Chat deleted." if conversation_id else "No chat selected.",
-    )
-
-
-def load_conversation_messages(conversation_id: str | None, user_email: str | None):
-    conversation = get_conversation(conversation_id, user_email)
-    if not conversation:
-        return [], None, gr.update(value=""), "No conversation selected."
-    return (
-        conversation.get("messages", []),
-        conversation["id"],
-        gr.update(value=conversation.get("title", "")),
-        f"Loaded: {conversation.get('title', 'New chat')}",
-    )
-
-
 def initialize_rag_once() -> None:
-    global _llm, _index, _rag_ready
+    global _llm, _index, _csv_loader, _rag_ready
 
     if _rag_ready:
         return
 
     from src.ingestion.ingest_files import ingest_files_data_folder
+    from src.ingestion.loaders.loaderCSV import LoaderCSV
     from src.services.models.embeddings import Embeddings
     from src.services.models.llm import LLM
     from src.services.vectorial_db.faiss_index import FAISSIndex
@@ -506,64 +453,131 @@ def initialize_rag_once() -> None:
         ingest_files_data_folder(_index)
         _index.save_index()
 
+    products_path = APP_DIR / "data" / "sustainable_products.csv"
+    if products_path.exists():
+        _csv_loader = LoaderCSV(str(products_path))
+
     _rag_ready = True
 
 
 def history_to_llm_messages(chat_history: list[Any] | None) -> list[dict[str, str]]:
-    llm_history: list[dict[str, str]] = []
+    messages: list[dict[str, str]] = []
     for item in chat_history or []:
         if isinstance(item, dict):
             role = item.get("role")
             content = item.get("content")
             if role in {"user", "assistant"} and content:
-                llm_history.append({"role": role, "content": str(content)})
+                messages.append({"role": role, "content": str(content)})
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
             user_msg, bot_msg = item[0], item[1]
             if user_msg:
-                llm_history.append({"role": "user", "content": str(user_msg)})
+                messages.append({"role": "user", "content": str(user_msg)})
             if bot_msg:
-                llm_history.append({"role": "assistant", "content": str(bot_msg)})
-    return llm_history
+                messages.append({"role": "assistant", "content": str(bot_msg)})
+    return messages
+
+
+def normalize_retrieved_chunk(item: Any, rank: int) -> dict[str, Any]:
+    if isinstance(item, dict):
+        chunk = item.get("chunk") or item.get("text") or ""
+        metadata = item.get("metadata") or {}
+        score = item.get("score")
+        return {"chunk": str(chunk), "metadata": metadata, "score": score}
+    return {"chunk": str(item), "metadata": {"chunk_index": rank}, "score": None}
+
+
+def format_sources(retrieved_chunks: list[dict[str, Any]]) -> str:
+    if not APP_SETTINGS.get("show_sources", True):
+        return ""
+
+    seen = set()
+    lines = ["**Sources:**"]
+    for item in retrieved_chunks:
+        metadata = item.get("metadata") or {}
+        source = metadata.get("source") or metadata.get("file_name") or "Knowledge base"
+        page = metadata.get("page")
+        label = f"{source}, page {page}" if page else str(source)
+        if label not in seen:
+            seen.add(label)
+            lines.append(f"- {label}")
+
+    if len(lines) == 1:
+        lines.append("- Retrieved from the indexed FAISS knowledge base.")
+
+    return "\n".join(lines)
+
+
+def should_recommend_products(message: str) -> bool:
+    keywords = [
+        "recommend", "recommendation", "product", "products", "buy", "shop",
+        "suggest", "sustainable product", "eco product", "home", "where can i get",
+    ]
+    lowered = (message or "").lower()
+    return any(keyword in lowered for keyword in keywords)
+
+
+def format_product_recommendations(message: str) -> str:
+    if not _csv_loader or not should_recommend_products(message):
+        return ""
+
+    products = _csv_loader.search_products(message, top_n=3)
+    if not products:
+        return ""
+
+    lines = ["**Recommended sustainable products:**"]
+    for product in products:
+        lines.extend(
+            [
+                "",
+                f"**{product.get('Product Name', 'Product')}**",
+                f"- Category: {product.get('Category', 'N/A')}",
+                f"- Price: ${product.get('Price ($)', 'N/A')}",
+                f"- Review score: {product.get('Review Score', 'N/A')}",
+                f"- Ships to: {product.get('Countries', 'N/A')}",
+                f"- {product.get('Description', '')}",
+            ]
+        )
+    return "\n".join(lines)
 
 
 def rag_answer(message: str, chat_history: list[Any] | None) -> str:
     initialize_rag_once()
     llm_history = history_to_llm_messages(chat_history)
     num_chunks = int(APP_SETTINGS.get("num_chunks", 5))
-    retrieved_chunks = _index.retrieve_chunks(message, num_chunks=num_chunks)
-    context = "\n\n#####\n\n".join(retrieved_chunks)
-    temperature = float(APP_SETTINGS.get("temperature", 0.7))
-    response = _llm.get_response(llm_history, context, message, temperature=temperature)
+    raw_chunks = _index.retrieve_chunks(message, num_chunks=num_chunks)
+    retrieved_chunks = [normalize_retrieved_chunk(item, rank) for rank, item in enumerate(raw_chunks)]
 
-    if APP_SETTINGS.get("show_sources", True):
-        response += (
-            "\n\n---\n"
-            "**Sources:** Retrieved from the indexed FAISS knowledge base. "
-            "Document/page-level citations still require metadata support in the vector index."
-        )
+    context_parts = []
+    for item in retrieved_chunks:
+        metadata = item.get("metadata") or {}
+        source = metadata.get("source") or metadata.get("file_name") or "Knowledge base"
+        page = metadata.get("page")
+        label = f"{source}, page {page}" if page else source
+        context_parts.append(f"[Source: {label}]\n{item.get('chunk', '')}")
 
+    context = "\n\n#####\n\n".join(context_parts)
+    response = _llm.get_response(llm_history, context, message)
+
+    sources = format_sources(retrieved_chunks)
+    products = format_product_recommendations(message)
+    extras = [part for part in (sources, products) if part]
+    if extras:
+        response = f"{response}\n\n---\n" + "\n\n".join(extras)
     return response
 
 
 def list_indexed_documents() -> str:
-    data_dir = APP_DIR / "data"
-    uploaded_dir = APP_DIR / "uploaded_documents"
     supported = {".pdf", ".html", ".htm", ".docx", ".pptx", ".csv"}
     lines = ["### Current documents"]
-
-    for folder, label in ((data_dir, "Data folder"), (uploaded_dir, "Uploaded")):
+    for folder, label in ((APP_DIR / "data", "Data folder"), (APP_DIR / "uploaded_documents", "Uploaded")):
         if not folder.exists():
             continue
         files = sorted(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in supported)
-        if not files:
-            continue
-        lines.append(f"\n**{label}**")
-        for path in files:
-            lines.append(f"- `{path.name}`")
-
+        if files:
+            lines.append(f"\n**{label}**")
+            lines.extend(f"- `{path.name}`" for path in files)
     if len(lines) == 1:
         lines.append("\nNo supported documents found yet.")
-
     return "\n".join(lines)
 
 
@@ -585,28 +599,8 @@ def upload_document(file):
     shutil.copy2(source_path, destination)
 
     return (
-        f"Saved `{source_path.name}` to `uploaded_documents/`. "
-        "The base RAG ingestion still uses the original `data/` folder unless re-indexing is wired later.",
+        f"Saved `{source_path.name}` to `uploaded_documents/`. Re-indexing can be added after the demo flow.",
         list_indexed_documents(),
-    )
-
-
-def update_rag_settings(
-    num_chunks: int,
-    show_sources: bool,
-    chunking_strategy: str,
-    temperature: float,
-):
-    APP_SETTINGS["num_chunks"] = int(num_chunks)
-    APP_SETTINGS["show_sources"] = bool(show_sources)
-    APP_SETTINGS["chunking_strategy"] = chunking_strategy
-    APP_SETTINGS["temperature"] = float(temperature)
-
-    return (
-        f"Settings saved: {APP_SETTINGS['num_chunks']} chunks, "
-        f"sources {'on' if APP_SETTINGS['show_sources'] else 'off'}, "
-        f"chunking strategy `{APP_SETTINGS['chunking_strategy']}`, "
-        f"temperature {APP_SETTINGS['temperature']:.2f}."
     )
 
 
@@ -614,36 +608,11 @@ def theme_style(mode: str) -> str:
     if mode == "dark":
         return f"""
         <style id="theme-mode-style">
-          html, body, body > gradio-app {{
+          html, body, body > gradio-app, .gradio-container {{
             background: #06140f !important;
             color: #edf7ec !important;
           }}
-          .gradio-container {{
-            background: #06140f !important;
-            color: #edf7ec !important;
-          }}
-          .gradio-container,
-          .gradio-container .main,
-          .gradio-container .wrap,
-          .gradio-container .contain,
-          .gradio-container .block,
-          .gradio-container .form,
-          .gradio-container .panel,
-          .gradio-container .tabs,
-          .gradio-container .tabitem,
-          .gradio-container .examples,
-          .gradio-container .dataset,
-          .gradio-container table,
-          .gradio-container thead,
-          .gradio-container tbody,
-          .gradio-container tr,
-          .gradio-container td,
-          .gradio-container th {{
-            background-color: #06140f !important;
-            color: #edf7ec !important;
-            border-color: rgba(134, 188, 37, 0.22) !important;
-          }}
-          #landing-card, #auth-card, #chat-card,
+          #landing-card, #auth-card, #profile-card, #chat-card, #app-header,
           .gradio-container .block,
           .gradio-container .form,
           .gradio-container .panel {{
@@ -651,16 +620,11 @@ def theme_style(mode: str) -> str:
             border-color: rgba(134, 188, 37, 0.28) !important;
             box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34) !important;
           }}
-          #landing-brand, #chat-title {{
+          #landing-brand, #chat-title, #header-logo {{
             color: {PRIMARY_GREEN} !important;
           }}
-          #landing-subtitle, .status-line, #theme-status,
+          #landing-subtitle, .status-line,
           .gradio-container label,
-          .gradio-container .prose,
-          .gradio-container .markdown,
-          .gradio-container .wrap,
-          .gradio-container .contain,
-          .gradio-container span,
           .gradio-container p,
           .gradio-container h1,
           .gradio-container h2,
@@ -672,96 +636,44 @@ def theme_style(mode: str) -> str:
             background: #04100c !important;
             border: 1px solid rgba(134, 188, 37, 0.24) !important;
           }}
-          textarea,
-          input,
-          select,
-          #sidebar textarea,
-          #sidebar input,
-          #sidebar select,
-          #sidebar [role="textbox"],
-          #sidebar [role="combobox"],
+          textarea, input, select,
+          #sidebar textarea, #sidebar input, #sidebar select,
+          #sidebar [role="textbox"], #sidebar [role="combobox"],
           .gradio-container [role="textbox"],
           .gradio-container [role="combobox"],
-          .gradio-container [role="listbox"],
           .gradio-container .input,
           .gradio-container .input-container {{
             background: #071a13 !important;
             color: #f2ffe8 !important;
             border-color: rgba(134, 188, 37, 0.36) !important;
           }}
-          textarea::placeholder,
-          input::placeholder {{
-            color: #9fb7a0 !important;
+          [role="listbox"], .gradio-container [role="listbox"], #sidebar [role="listbox"] {{
+            background: #ffffff !important;
+            border-color: rgba(134, 188, 37, 0.38) !important;
           }}
-          .gradio-container .chatbot,
-          .gradio-container .message,
-          .gradio-container .bubble-wrap,
-          .gradio-container .message-wrap,
-          .gradio-container .bot,
-          .gradio-container .user {{
-            background: #071a13 !important;
-            color: #f2ffe8 !important;
-            border-color: rgba(134, 188, 37, 0.22) !important;
+          [role="listbox"] *, [role="option"], [role="option"] *,
+          .gradio-container [role="listbox"] *, .gradio-container [role="option"],
+          .gradio-container [role="option"] *, #sidebar [role="listbox"] *,
+          #sidebar [role="option"], #sidebar [role="option"] * {{
+            color: #10231b !important;
           }}
-          .gradio-container .file-preview,
-          .gradio-container .file,
-          .gradio-container .upload-container,
-          .gradio-container .empty,
-          .gradio-container .icon-wrap {{
-            background: #071a13 !important;
-            color: #f2ffe8 !important;
-            border-color: rgba(134, 188, 37, 0.28) !important;
+          [role="option"]:hover, [role="option"][aria-selected="true"],
+          .gradio-container [role="option"]:hover,
+          .gradio-container [role="option"][aria-selected="true"] {{
+            background: #eef8df !important;
+            color: #10231b !important;
           }}
-          .gradio-container input[type="range"] {{
-            accent-color: {PRIMARY_GREEN} !important;
-          }}
-          .gradio-container input[type="checkbox"] {{
-            accent-color: {PRIMARY_GREEN} !important;
-          }}
-          .secondary-action,
-          .secondary-action button,
-          button.secondary-action,
-          #theme-bar button,
-          #app-shell button.secondary-action,
-          #app-shell .secondary-action button,
-          #app-shell #theme-bar button {{
+          .secondary-action, .secondary-action button, button.secondary-action,
+          #theme-bar button, #app-shell button.secondary-action,
+          #app-shell .secondary-action button {{
             background: #193629 !important;
             border-color: rgba(134, 188, 37, 0.36) !important;
             color: #f2ffe8 !important;
           }}
-          .danger-action,
-          .danger-action button,
-          button.danger-action,
-          #app-shell button.danger-action,
-          #app-shell .danger-action button {{
+          .danger-action, .danger-action button, button.danger-action {{
             background: #4b2020 !important;
             border-color: #8a4848 !important;
             color: #ffe5e5 !important;
-          }}
-          #app-shell #sidebar textarea,
-          #app-shell #sidebar input,
-          #app-shell #sidebar select,
-          #app-shell #sidebar [role="textbox"],
-          #app-shell #sidebar [role="combobox"] {{
-            background: #071a13 !important;
-            color: #f2ffe8 !important;
-            border-color: rgba(134, 188, 37, 0.36) !important;
-          }}
-          .tabitem, .tabs, .tab-nav {{
-            background: transparent !important;
-            color: #edf7ec !important;
-          }}
-          .tab-container button {{
-            color: #edf7ec !important;
-            background: rgba(237, 247, 236, 0.08) !important;
-          }}
-          [role="tab"] {{
-            color: #edf7ec !important;
-          }}
-          .tab-container button.selected,
-          [role="tab"][aria-selected="true"] {{
-            color: #0b1f16 !important;
-            background: {PRIMARY_GREEN} !important;
           }}
         </style>
         """
@@ -772,20 +684,32 @@ def theme_style(mode: str) -> str:
         background: {LIGHT_BG} !important;
         color: #10231b !important;
       }}
-      #landing-card, #auth-card, #chat-card {{
+      #landing-card, #auth-card, #profile-card, #chat-card, #app-header {{
         background: #ffffff !important;
         border-color: rgba(11, 61, 46, 0.12) !important;
-        box-shadow: 0 18px 48px rgba(11, 61, 46, 0.12) !important;
       }}
-      #landing-brand, #chat-title {{
+      #landing-brand, #chat-title, #header-logo {{
         color: {DARK_GREEN} !important;
-      }}
-      #landing-subtitle, .status-line, #theme-status {{
-        color: #315246 !important;
       }}
       #sidebar {{
         background: {DARK_GREEN} !important;
         border: 0 !important;
+      }}
+      [role="listbox"], .gradio-container [role="listbox"], #sidebar [role="listbox"] {{
+        background: #ffffff !important;
+        border-color: rgba(11, 61, 46, 0.18) !important;
+      }}
+      [role="listbox"] *, [role="option"], [role="option"] *,
+      .gradio-container [role="listbox"] *, .gradio-container [role="option"],
+      .gradio-container [role="option"] *, #sidebar [role="listbox"] *,
+      #sidebar [role="option"], #sidebar [role="option"] * {{
+        color: #10231b !important;
+      }}
+      [role="option"]:hover, [role="option"][aria-selected="true"],
+      .gradio-container [role="option"]:hover,
+      .gradio-container [role="option"][aria-selected="true"] {{
+        background: #eef8df !important;
+        color: #10231b !important;
       }}
       .secondary-action button, button.secondary-action {{
         background: #ffffff !important;
@@ -799,45 +723,55 @@ def theme_style(mode: str) -> str:
 def toggle_theme(current_mode: str | None):
     next_mode = "dark" if current_mode != "dark" else "light"
     button_label = "Light mode" if next_mode == "dark" else "Dark mode"
-    status = "Dark theme active." if next_mode == "dark" else "Light theme active."
-    return next_mode, theme_style(next_mode), gr.update(value=button_label), status
+    return next_mode, theme_style(next_mode), gr.update(value=button_label)
 
 
 def show_landing():
-    return (
-        gr.update(visible=True),
-        gr.update(visible=False),
-        gr.update(visible=False),
-        gr.update(visible=False),
-    )
+    return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
 
 
 def show_login():
     return (
-        gr.update(visible=False),
-        gr.update(visible=True),
-        gr.update(visible=False),
-        gr.update(visible=False),
-        gr.update(value=""),
+        gr.update(visible=False), gr.update(visible=True), gr.update(visible=False),
+        gr.update(visible=False), gr.update(visible=False), gr.update(value="")
     )
 
 
 def show_register():
     return (
-        gr.update(visible=False),
-        gr.update(visible=False),
-        gr.update(visible=True),
-        gr.update(visible=False),
-        gr.update(value=""),
-        gr.update(visible=False),
-        "",
+        gr.update(visible=False), gr.update(visible=False), gr.update(visible=True),
+        gr.update(visible=False), gr.update(visible=False), gr.update(value=""),
+        gr.update(visible=False), ""
+    )
+
+
+def show_chat():
+    return (
+        gr.update(visible=False), gr.update(visible=False), gr.update(visible=False),
+        gr.update(visible=True), gr.update(visible=False), ""
+    )
+
+
+def show_profile(user_email: str | None):
+    email = normalize_email(user_email)
+    user = load_users().get(email)
+    if not user:
+        return (
+            gr.update(visible=False), gr.update(visible=True), gr.update(visible=False),
+            gr.update(visible=False), gr.update(visible=False), gr.update(value=""),
+            gr.update(value=""), "Please login to view your profile."
+        )
+
+    return (
+        gr.update(visible=False), gr.update(visible=False), gr.update(visible=False),
+        gr.update(visible=False), gr.update(visible=True), gr.update(value=user.get("name") or ""),
+        gr.update(value=user.get("email") or email), ""
     )
 
 
 def register_user(name: str, email: str, password: str, confirm_password: str):
     email = normalize_email(email)
     users = load_users()
-
     if not email:
         return "Email cannot be empty.", gr.update(visible=False), ""
     if not password:
@@ -873,35 +807,22 @@ def confirm_email(email: str):
 
 def login_user(email: str, password: str):
     email = normalize_email(email)
-    users = load_users()
-    user = users.get(email)
+    user = load_users().get(email)
+    hidden_chat = gr.update(visible=False)
 
     if not user or not verify_password(password, user):
         return (
-            gr.update(visible=False),
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            None,
-            None,
-            [],
-            conversation_dropdown_update(None),
-            gr.update(value=""),
-            "Invalid email or password.",
+            gr.update(visible=False), gr.update(visible=True), gr.update(visible=False),
+            hidden_chat, gr.update(visible=False), None, None, [],
+            conversation_dropdown_update(None), gr.update(value=""), "Invalid email or password."
         )
 
     if not user.get("confirmed", False):
         return (
-            gr.update(visible=False),
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            None,
-            None,
-            [],
-            conversation_dropdown_update(None),
-            gr.update(value=""),
-            "Please confirm your email before logging in.",
+            gr.update(visible=False), gr.update(visible=True), gr.update(visible=False),
+            hidden_chat, gr.update(visible=False), None, None, [],
+            conversation_dropdown_update(None), gr.update(value=""),
+            "Please confirm your email before logging in."
         )
 
     conversations = get_user_conversations(email)
@@ -911,45 +832,85 @@ def login_user(email: str, password: str):
     title = active.get("title", "") if active else ""
 
     return (
-        gr.update(visible=False),
-        gr.update(visible=False),
-        gr.update(visible=False),
-        gr.update(visible=True),
-        email,
-        active_id,
-        messages,
-        conversation_dropdown_update(email, active_id),
-        gr.update(value=title),
-        f"Logged in as {user.get('name') or email}.",
+        gr.update(visible=False), gr.update(visible=False), gr.update(visible=False),
+        gr.update(visible=True), gr.update(visible=False), email, active_id, messages,
+        conversation_dropdown_update(email, active_id), gr.update(value=title),
+        f"Logged in as {user.get('name') or email}."
     )
 
 
 def logout_user():
     return (
-        gr.update(visible=True),
-        gr.update(visible=False),
-        gr.update(visible=False),
-        gr.update(visible=False),
-        None,
-        None,
-        [],
-        conversation_dropdown_update(None),
-        gr.update(value=""),
-        "",
+        gr.update(visible=True), gr.update(visible=False), gr.update(visible=False),
+        gr.update(visible=False), gr.update(visible=False), None, None, [],
+        conversation_dropdown_update(None), gr.update(value=""), ""
     )
+
+
+def change_password(user_email: str | None, current_password: str, new_password: str, confirm_password: str):
+    email = normalize_email(user_email)
+    users = load_users()
+    user = users.get(email)
+    cleared = (gr.update(value=""), gr.update(value=""), gr.update(value=""))
+    if not user:
+        return ("Please login to change your password.", *cleared)
+    if not verify_password(current_password or "", user):
+        return ("Current password is incorrect.", *cleared)
+    if not new_password:
+        return ("New password cannot be empty.", *cleared)
+    if new_password != confirm_password:
+        return ("New passwords do not match.", *cleared)
+
+    salt = secrets.token_hex(16)
+    users[email]["salt"] = salt
+    users[email]["password_hash"] = hash_password(new_password, salt)
+    users[email]["password_updated_at"] = utc_now()
+    save_users(users)
+    return ("Password changed successfully.", *cleared)
 
 
 def start_new_chat(user_email: str | None):
     if not user_email:
         return [], None, conversation_dropdown_update(None), gr.update(value=""), "Login required."
     conversation = create_conversation(user_email)
-    return (
-        [],
-        conversation["id"],
-        conversation_dropdown_update(user_email, conversation["id"]),
-        gr.update(value=conversation["title"]),
-        "New chat created.",
-    )
+    return [], conversation["id"], conversation_dropdown_update(user_email, conversation["id"]), gr.update(value=conversation["title"]), "New chat created."
+
+
+def load_conversation_messages(conversation_id: str | None, user_email: str | None):
+    conversation = get_conversation(conversation_id, user_email)
+    if not conversation:
+        return [], None, gr.update(value=""), "No conversation selected."
+    return conversation.get("messages", []), conversation["id"], gr.update(value=conversation.get("title", "")), f"Loaded: {conversation.get('title', 'New chat')}"
+
+
+def rename_conversation(conversation_id: str | None, user_email: str | None, new_title: str):
+    conversation = get_conversation(conversation_id, user_email)
+    if not conversation:
+        return conversation_dropdown_update(user_email), conversation_id, gr.update(value=new_title or ""), "Select a conversation to rename."
+
+    title = (new_title or "").strip()
+    if not title:
+        return conversation_dropdown_update(user_email, conversation_id), conversation_id, gr.update(value=conversation.get("title", "")), "Chat name cannot be empty."
+
+    conversation["title"] = title
+    conversation["updated_at"] = utc_now()
+    update_conversation(conversation)
+    return conversation_dropdown_update(user_email, conversation_id), conversation_id, gr.update(value=title), "Chat renamed."
+
+
+def delete_conversation(conversation_id: str | None, user_email: str | None):
+    email = normalize_email(user_email)
+    conversations = [
+        item for item in load_conversations()
+        if not (item.get("id") == conversation_id and normalize_email(item.get("user_email")) == email)
+    ]
+    save_conversations(conversations)
+    remaining = get_user_conversations(email)
+    next_conversation = remaining[0] if remaining else None
+    next_id = next_conversation["id"] if next_conversation else None
+    messages = next_conversation.get("messages", []) if next_conversation else []
+    title = next_conversation.get("title", "") if next_conversation else ""
+    return messages, next_id, conversation_dropdown_update(email, next_id), gr.update(value=title), "Chat deleted." if conversation_id else "No chat selected."
 
 
 def send_message(message: str, chat_history: list[Any] | None, user_email: str | None, active_id: str | None):
@@ -970,17 +931,13 @@ def send_message(message: str, chat_history: list[Any] | None, user_email: str |
         response = rag_answer(text, current_messages)
     except Exception as error:
         rag_failed = True
-        response = (
-            "I could not complete the RAG answer. "
-            f"Technical detail: {error}"
-        )
+        response = f"I could not complete the RAG answer. Technical detail: {error}"
 
     updated_messages = [
         *current_messages,
         {"role": "user", "content": text},
         {"role": "assistant", "content": response},
     ]
-
     if not conversation.get("title") or conversation.get("title") == "New chat":
         conversation["title"] = title_from_message(text)
     conversation["messages"] = updated_messages
@@ -988,44 +945,31 @@ def send_message(message: str, chat_history: list[Any] | None, user_email: str |
     update_conversation(conversation)
 
     return (
-        updated_messages,
-        gr.update(value=""),
-        conversation["id"],
+        updated_messages, gr.update(value=""), conversation["id"],
         conversation_dropdown_update(user_email, conversation["id"]),
         gr.update(value=conversation["title"]),
-        "RAG error. Check Azure OpenAI credentials and index." if rag_failed else "Answer generated with RAG.",
+        "RAG error. Check Azure OpenAI credentials and index." if rag_failed else "Answer generated with RAG."
     )
 
 
 def clear_conversation(user_email: str | None, active_id: str | None):
     if not user_email:
         return [], active_id, conversation_dropdown_update(None), gr.update(), "Login required."
-
     conversation = get_conversation(active_id, user_email)
     if not conversation:
         return [], active_id, conversation_dropdown_update(user_email, active_id), gr.update(), "No active chat to clear."
-
     conversation["messages"] = []
     conversation["updated_at"] = utc_now()
     update_conversation(conversation)
-
-    return (
-        [],
-        conversation["id"],
-        conversation_dropdown_update(user_email, conversation["id"]),
-        gr.update(value=conversation.get("title", "New chat")),
-        "Conversation cleared.",
-    )
+    return [], conversation["id"], conversation_dropdown_update(user_email, conversation["id"]), gr.update(value=conversation.get("title", "New chat")), "Conversation cleared."
 
 
 def export_conversation(user_email: str | None, active_id: str | None):
     if not user_email:
         return "Login required.", gr.update(value=None, visible=False)
-
     conversation = get_conversation(active_id, user_email)
     if not conversation:
         return "No active chat to export.", gr.update(value=None, visible=False)
-
     messages = conversation.get("messages", [])
     if not messages:
         return "This chat is empty.", gr.update(value=None, visible=False)
@@ -1035,7 +979,6 @@ def export_conversation(user_email: str | None, active_id: str | None):
     safe_title = "".join(char if char.isalnum() else "_" for char in conversation.get("title", "chat")).strip("_")
     safe_title = safe_title[:40] or "chat"
     export_path = EXPORTS_DIR / f"{safe_title}_{timestamp}.md"
-
     lines = [
         f"# {conversation.get('title', 'EcoGuide conversation')}",
         "",
@@ -1047,9 +990,15 @@ def export_conversation(user_email: str | None, active_id: str | None):
     for message in messages:
         role = "User" if message.get("role") == "user" else "EcoGuide"
         lines.extend([f"## {role}", "", str(message.get("content", "")), ""])
-
     export_path.write_text("\n".join(lines), encoding="utf-8")
     return f"Conversation exported: `{export_path.name}`", gr.update(value=str(export_path), visible=True)
+
+
+def update_rag_settings(num_chunks: int, show_sources: bool, temperature: float):
+    APP_SETTINGS["num_chunks"] = int(num_chunks)
+    APP_SETTINGS["show_sources"] = bool(show_sources)
+    APP_SETTINGS["temperature"] = float(temperature)
+    return f"Settings saved: {APP_SETTINGS['num_chunks']} chunks, sources {'on' if APP_SETTINGS['show_sources'] else 'off'}, temperature {APP_SETTINGS['temperature']:.2f}."
 
 
 def create_interface() -> gr.Blocks:
@@ -1067,12 +1016,7 @@ def create_interface() -> gr.Blocks:
                 theme_btn = gr.Button("Dark mode", elem_classes=["secondary-action"])
 
             with gr.Column(visible=True, elem_id="landing-card") as landing_page:
-                gr.HTML(
-                    """
-                    <div id="landing-brand">EcoGuide</div>
-                    <div id="landing-subtitle">Your climate change and sustainability assistant</div>
-                    """
-                )
+                gr.HTML('<div id="landing-brand">Eco<span>Guide</span></div><div id="landing-subtitle">Your climate change and sustainability assistant</div>')
                 with gr.Row():
                     landing_login_btn = gr.Button("Login", elem_classes=["primary-action"])
                     landing_register_btn = gr.Button("Register", elem_classes=["secondary-action"])
@@ -1099,213 +1043,116 @@ def create_interface() -> gr.Blocks:
                     register_back_btn = gr.Button("Back", elem_classes=["secondary-action"])
                 confirm_email_btn = gr.Button("Confirm email", visible=False, elem_classes=["primary-action"])
 
-            with gr.Row(visible=False) as chat_page:
-                with gr.Column(scale=1, min_width=260, elem_id="sidebar"):
-                    gr.Markdown("### EcoGuide")
-                    chat_status = gr.Markdown("", elem_classes=["status-line"])
-                    conversation_select = gr.Dropdown(
-                        label="Conversations",
-                        choices=[],
-                        value=None,
-                        interactive=True,
-                    )
-                    rename_input = gr.Textbox(label="Chat name", placeholder="New name")
-                    new_chat_btn = gr.Button("New chat", elem_classes=["primary-action"])
-                    rename_btn = gr.Button("Rename chat", elem_classes=["secondary-action"])
-                    delete_btn = gr.Button("Delete chat", elem_classes=["danger-action"])
-                    logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
+            with gr.Column(visible=False, elem_id="profile-card") as profile_page:
+                gr.Markdown("## Profile")
+                profile_name = gr.Textbox(label="Name", interactive=False)
+                profile_email = gr.Textbox(label="Email", interactive=False)
+                gr.Markdown("### Change password")
+                current_password = gr.Textbox(label="Current password", type="password")
+                new_password = gr.Textbox(label="New password", type="password")
+                confirm_new_password = gr.Textbox(label="Confirm new password", type="password")
+                profile_status = gr.Markdown("", elem_classes=["status-line"])
+                with gr.Row():
+                    save_password_btn = gr.Button("Change password", elem_classes=["primary-action"])
+                    profile_back_btn = gr.Button("Back to chat", elem_classes=["secondary-action"])
+                    profile_logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
 
-                with gr.Column(scale=4, elem_id="chat-card"):
-                    gr.HTML('<div id="chat-title">EcoGuide Chatbot</div>')
-                    gr.Markdown("Ask questions about climate change and get AI-powered answers with sources.")
+            with gr.Column(visible=False) as chat_page:
+                with gr.Row(elem_id="app-header"):
+                    with gr.Column(scale=1, min_width=220):
+                        gr.HTML('<div id="header-logo">Eco<span>Guide</span></div>')
+                    with gr.Column(scale=1):
+                        with gr.Row(elem_id="header-actions"):
+                            header_profile_btn = gr.Button("Profile", elem_classes=["secondary-action"])
+                            header_logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
 
-                    with gr.Tab("Chat"):
-                        chatbot = gr.Chatbot(
-                            label="EcoGuide Chatbot",
-                            type="messages",
-                            height=500,
-                            show_label=False,
-                        )
-                        message_box = gr.Textbox(
-                            label="Message",
-                            placeholder="Ask EcoGuide about climate change or sustainable recommendations",
-                            lines=1,
-                        )
-                        with gr.Row():
-                            send_btn = gr.Button("Submit", elem_classes=["primary-action"])
-                            clear_chat_btn = gr.Button("Clear chat", elem_classes=["secondary-action"])
-                            export_chat_btn = gr.Button("Export chat", elem_classes=["secondary-action"])
-                            main_new_chat_btn = gr.Button("New conversation", elem_classes=["secondary-action"])
-                            main_logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
-                        export_status = gr.Markdown("", elem_classes=["status-line"])
-                        export_file = gr.File(label="Download export", visible=False, interactive=False)
+                with gr.Row():
+                    with gr.Column(scale=1, min_width=260, elem_id="sidebar"):
+                        gr.Markdown("### EcoGuide")
+                        chat_status = gr.Markdown("", elem_classes=["status-line"])
+                        conversation_select = gr.Dropdown(label="Conversations", choices=[], value=None, interactive=True)
+                        rename_input = gr.Textbox(label="Chat name", placeholder="New name")
+                        new_chat_btn = gr.Button("New chat", elem_classes=["primary-action"])
+                        rename_btn = gr.Button("Rename chat", elem_classes=["secondary-action"])
+                        delete_btn = gr.Button("Delete chat", elem_classes=["danger-action"])
 
-                        gr.Examples(
-                            examples=[
-                                "What is climate change?",
-                                "How can I reduce my carbon footprint?",
-                                "What are carbon offset strategies?",
-                                "Recommend sustainable products",
-                            ],
-                            inputs=message_box,
-                        )
+                    with gr.Column(scale=4, elem_id="chat-card"):
+                        gr.HTML('<div id="chat-title">EcoGuide Chatbot</div>')
+                        gr.Markdown("Ask questions about climate change and get AI-powered answers with sources.")
 
-                    with gr.Tab("Documents"):
-                        gr.Markdown("### Upload New Documents")
-                        file_upload = gr.File(
-                            label="Upload PDF, HTML, DOCX, PPTX or CSV files",
-                            file_types=[".pdf", ".html", ".docx", ".pptx", ".csv"],
-                        )
-                        upload_btn = gr.Button("Upload document", elem_classes=["primary-action"])
-                        upload_status = gr.Markdown("", elem_classes=["status-line"])
-                        documents_list = gr.Markdown(list_indexed_documents())
+                        with gr.Tab("Chat"):
+                            chatbot = gr.Chatbot(label="EcoGuide Chatbot", type="messages", height=500, show_label=False)
+                            message_box = gr.Textbox(label="Message", placeholder="Ask EcoGuide about climate change or sustainable recommendations", lines=1)
+                            with gr.Row():
+                                send_btn = gr.Button("Submit", elem_classes=["primary-action"])
+                                clear_chat_btn = gr.Button("Clear chat", elem_classes=["secondary-action"])
+                                export_chat_btn = gr.Button("Export chat", elem_classes=["secondary-action"])
+                                main_new_chat_btn = gr.Button("New conversation", elem_classes=["secondary-action"])
+                            export_status = gr.Markdown("", elem_classes=["status-line"])
+                            export_file = gr.File(label="Download export", visible=False, interactive=False)
+                            gr.Examples(
+                                examples=[
+                                    "What is climate change?",
+                                    "How can I reduce my carbon footprint?",
+                                    "What are carbon offset strategies?",
+                                    "Recommend sustainable products for my home",
+                                ],
+                                inputs=message_box,
+                            )
 
-                    with gr.Tab("Settings"):
-                        gr.Markdown("### RAG Settings")
-                        num_chunks = gr.Slider(
-                            minimum=1,
-                            maximum=10,
-                            value=APP_SETTINGS["num_chunks"],
-                            step=1,
-                            label="Number of chunks to retrieve",
-                            info="More chunks means more context, but slower answers.",
-                        )
-                        show_sources = gr.Checkbox(
-                            label="Show source citations in answers",
-                            value=APP_SETTINGS["show_sources"],
-                            info="Display that answers are grounded in the FAISS knowledge base.",
-                        )
-                        temperature = gr.Slider(
-                            minimum=0.0,
-                            maximum=1.5,
-                            value=APP_SETTINGS["temperature"],
-                            step=0.1,
-                            label="LLM temperature",
-                            info="Lower values are more deterministic; higher values are more creative.",
-                        )
-                        chunking_strategy = gr.Dropdown(
-                            choices=["token", "sentence", "semantic"],
-                            value=APP_SETTINGS["chunking_strategy"],
-                            label="Chunking strategy",
-                            info="Currently saved for demo control; re-indexing still uses the starter-kit ingestion flow.",
-                        )
-                        save_settings_btn = gr.Button("Save settings", elem_classes=["primary-action"])
-                        settings_status = gr.Markdown("", elem_classes=["status-line"])
+                        with gr.Tab("Documents"):
+                            gr.Markdown("### Upload New Documents")
+                            file_upload = gr.File(label="Upload PDF, HTML, DOCX, PPTX or CSV files", file_types=[".pdf", ".html", ".docx", ".pptx", ".csv"])
+                            upload_btn = gr.Button("Upload document", elem_classes=["primary-action"])
+                            upload_status = gr.Markdown("", elem_classes=["status-line"])
+                            documents_list = gr.Markdown(list_indexed_documents())
 
-        panel_outputs = [landing_page, login_page, register_page, chat_page]
+                        with gr.Tab("Settings"):
+                            gr.Markdown("### RAG Settings")
+                            num_chunks = gr.Slider(minimum=1, maximum=10, value=APP_SETTINGS["num_chunks"], step=1, label="Number of chunks to retrieve")
+                            show_sources = gr.Checkbox(label="Show source citations in answers", value=APP_SETTINGS["show_sources"])
+                            temperature = gr.Slider(minimum=0.0, maximum=1.5, value=APP_SETTINGS["temperature"], step=0.1, label="LLM temperature")
+                            save_settings_btn = gr.Button("Save settings", elem_classes=["primary-action"])
+                            settings_status = gr.Markdown("", elem_classes=["status-line"])
 
-        theme_btn.click(
-            toggle_theme,
-            inputs=[theme_mode],
-            outputs=[theme_mode, theme_override, theme_btn],
-        )
+        panel_outputs = [landing_page, login_page, register_page, chat_page, profile_page]
 
-        landing_login_btn.click(
-            show_login,
-            inputs=None,
-            outputs=[*panel_outputs, login_status],
-        )
-        landing_register_btn.click(
-            show_register,
-            inputs=None,
-            outputs=[*panel_outputs, register_status, confirm_email_btn, pending_confirmation_email],
-        )
+        theme_btn.click(toggle_theme, inputs=[theme_mode], outputs=[theme_mode, theme_override, theme_btn])
+        landing_login_btn.click(show_login, inputs=None, outputs=[*panel_outputs, login_status])
+        landing_register_btn.click(show_register, inputs=None, outputs=[*panel_outputs, register_status, confirm_email_btn, pending_confirmation_email])
         login_back_btn.click(show_landing, inputs=None, outputs=panel_outputs)
         register_back_btn.click(show_landing, inputs=None, outputs=panel_outputs)
 
-        create_account_btn.click(
-            register_user,
-            inputs=[register_name, register_email, register_password, register_confirm_password],
-            outputs=[register_status, confirm_email_btn, pending_confirmation_email],
-        )
-        confirm_email_btn.click(
-            confirm_email,
-            inputs=[pending_confirmation_email],
-            outputs=[register_status, confirm_email_btn],
-        )
+        create_account_btn.click(register_user, inputs=[register_name, register_email, register_password, register_confirm_password], outputs=[register_status, confirm_email_btn, pending_confirmation_email])
+        confirm_email_btn.click(confirm_email, inputs=[pending_confirmation_email], outputs=[register_status, confirm_email_btn])
 
-        login_outputs = [
-            landing_page,
-            login_page,
-            register_page,
-            chat_page,
-            current_user,
-            active_conversation_id,
-            chatbot,
-            conversation_select,
-            rename_input,
-            chat_status,
-        ]
+        login_outputs = [*panel_outputs, current_user, active_conversation_id, chatbot, conversation_select, rename_input, chat_status]
         login_btn.click(login_user, inputs=[login_email, login_password], outputs=login_outputs)
 
-        logout_outputs = [
-            landing_page,
-            login_page,
-            register_page,
-            chat_page,
-            current_user,
-            active_conversation_id,
-            chatbot,
-            conversation_select,
-            rename_input,
-            chat_status,
-        ]
-        logout_btn.click(logout_user, inputs=None, outputs=logout_outputs)
-        main_logout_btn.click(logout_user, inputs=None, outputs=logout_outputs)
+        logout_outputs = [*panel_outputs, current_user, active_conversation_id, chatbot, conversation_select, rename_input, chat_status]
+        header_logout_btn.click(logout_user, inputs=None, outputs=logout_outputs)
+        profile_logout_btn.click(logout_user, inputs=None, outputs=logout_outputs)
+
+        profile_outputs = [*panel_outputs, profile_name, profile_email, profile_status]
+        header_profile_btn.click(show_profile, inputs=[current_user], outputs=profile_outputs)
+        profile_back_btn.click(show_chat, inputs=None, outputs=[*panel_outputs, profile_status])
+        save_password_btn.click(change_password, inputs=[current_user, current_password, new_password, confirm_new_password], outputs=[profile_status, current_password, new_password, confirm_new_password])
 
         new_chat_outputs = [chatbot, active_conversation_id, conversation_select, rename_input, chat_status]
         new_chat_btn.click(start_new_chat, inputs=[current_user], outputs=new_chat_outputs)
         main_new_chat_btn.click(start_new_chat, inputs=[current_user], outputs=new_chat_outputs)
 
-        conversation_select.change(
-            load_conversation_messages,
-            inputs=[conversation_select, current_user],
-            outputs=[chatbot, active_conversation_id, rename_input, chat_status],
-        )
-
-        rename_btn.click(
-            rename_conversation,
-            inputs=[active_conversation_id, current_user, rename_input],
-            outputs=[conversation_select, active_conversation_id, rename_input, chat_status],
-        )
-
-        delete_btn.click(
-            delete_conversation,
-            inputs=[active_conversation_id, current_user],
-            outputs=[chatbot, active_conversation_id, conversation_select, rename_input, chat_status],
-        )
+        conversation_select.change(load_conversation_messages, inputs=[conversation_select, current_user], outputs=[chatbot, active_conversation_id, rename_input, chat_status])
+        rename_btn.click(rename_conversation, inputs=[active_conversation_id, current_user, rename_input], outputs=[conversation_select, active_conversation_id, rename_input, chat_status])
+        delete_btn.click(delete_conversation, inputs=[active_conversation_id, current_user], outputs=[chatbot, active_conversation_id, conversation_select, rename_input, chat_status])
 
         send_outputs = [chatbot, message_box, active_conversation_id, conversation_select, rename_input, chat_status]
-        send_btn.click(
-            send_message,
-            inputs=[message_box, chatbot, current_user, active_conversation_id],
-            outputs=send_outputs,
-        )
-        message_box.submit(
-            send_message,
-            inputs=[message_box, chatbot, current_user, active_conversation_id],
-            outputs=send_outputs,
-        )
-        clear_chat_btn.click(
-            clear_conversation,
-            inputs=[current_user, active_conversation_id],
-            outputs=[chatbot, active_conversation_id, conversation_select, rename_input, chat_status],
-        )
-        export_chat_btn.click(
-            export_conversation,
-            inputs=[current_user, active_conversation_id],
-            outputs=[export_status, export_file],
-        )
-        upload_btn.click(
-            upload_document,
-            inputs=[file_upload],
-            outputs=[upload_status, documents_list],
-        )
-        save_settings_btn.click(
-            update_rag_settings,
-            inputs=[num_chunks, show_sources, temperature, chunking_strategy],
-            outputs=[settings_status],
-        )
+        send_btn.click(send_message, inputs=[message_box, chatbot, current_user, active_conversation_id], outputs=send_outputs)
+        message_box.submit(send_message, inputs=[message_box, chatbot, current_user, active_conversation_id], outputs=send_outputs)
+        clear_chat_btn.click(clear_conversation, inputs=[current_user, active_conversation_id], outputs=[chatbot, active_conversation_id, conversation_select, rename_input, chat_status])
+        export_chat_btn.click(export_conversation, inputs=[current_user, active_conversation_id], outputs=[export_status, export_file])
+        upload_btn.click(upload_document, inputs=[file_upload], outputs=[upload_status, documents_list])
+        save_settings_btn.click(update_rag_settings, inputs=[num_chunks, show_sources, temperature], outputs=[settings_status])
 
     return app
 

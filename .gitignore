@@ -41,3 +41,9 @@ venv.bak/
 
 #ignore faiss_index
 faiss_index
+
+# Local app runtime data
+users.json
+conversations.json
+exports/
+uploaded_documents/
