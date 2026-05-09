@@ -335,91 +335,92 @@ def create_interface():
     #     clear_btn="🗑️ Clear",
     # )
     
-    # TODO: OPTION 2 - Advanced Interface with Blocks (More Features)
-    # Use this for a more customized interface with multiple features
-    #
-    # with gr.Blocks(theme=gr.themes.Soft(), title="EcoGuide Chatbot") as interface:
-    #     gr.Markdown("# 🌍 EcoGuide - Your Climate Change Assistant")
-    #     gr.Markdown("Ask questions about climate change and get AI-powered answers with sources!")
-    #     
-    #     with gr.Tab("💬 Chat"):
-    #         chatbot = gr.Chatbot(
-    #             height=500,
-    #             show_label=False,
-    #             avatar_images=(None, "🌍")  # User, Bot avatars
-    #         )
-    #         msg = gr.Textbox(
-    #             placeholder="Type your question here...",
-    #             show_label=False,
-    #             container=False
-    #         )
-    #         
-    #         with gr.Row():
-    #             submit = gr.Button("Send 📤", variant="primary")
-    #             clear = gr.Button("Clear 🗑️")
-    #             export = gr.Button("Export 💾")
-    #         
-    #         # Examples
-    #         gr.Examples(
-    #             examples=[
-    #                 "What is climate change?",
-    #                 "How can I reduce my carbon footprint?",
-    #                 "What are carbon offset strategies?",
-    #                 "Recommend sustainable products"
-    #             ],
-    #             inputs=msg
-    #         )
-    #         
-    #         # Wire up the interactions
-    #         msg.submit(chatbot_response, [msg, chatbot], [chatbot])
-    #         submit.click(chatbot_response, [msg, chatbot], [chatbot])
-    #         clear.click(reset_conversation, None, [chatbot, msg])
-    #         export.click(export_conversation, [chatbot], [gr.Textbox(label="Export Path")])
-    #     
-    #     with gr.Tab("📁 Documents"):
-    #         gr.Markdown("### Upload New Documents")
-    #         file_upload = gr.File(
-    #             label="Upload PDF, HTML, DOCX, or CSV files",
-    #             file_types=[".pdf", ".html", ".docx", ".csv"]
-    #         )
-    #         upload_btn = gr.Button("Upload & Ingest 📤", variant="primary")
-    #         upload_status = gr.Textbox(label="Status", interactive=False)
-    #         
-    #         upload_btn.click(upload_document, [file_upload], [upload_status])
-    #         
-    #         gr.Markdown("### Current Documents")
-    #         gr.Markdown("- Greenhouse_ga_protocol_corporate_standard_FAQ.html")
-    #         gr.Markdown("- sustainable_products.csv")
-    #         gr.Markdown("_TODO: Make this dynamic by reading from data folder_")
-    #     
-    #     with gr.Tab("⚙️ Settings"):
-    #         gr.Markdown("### RAG Settings")
-    #         
-    #         num_chunks = gr.Slider(
-    #             minimum=1,
-    #             maximum=10,
-    #             value=5,
-    #             step=1,
-    #             label="Number of chunks to retrieve",
-    #             info="More chunks = more context but slower"
-    #         )
-    #         
-    #         show_sources = gr.Checkbox(
-    #             label="Show source citations",
-    #             value=True,
-    #             info="Display which documents were used for the answer"
-    #         )
-    #         
-    #         chunking_strategy = gr.Dropdown(
-    #             choices=["token", "sentence", "semantic"],
-    #             value="token",
-    #             label="Chunking Strategy",
-    #             info="How to split documents (requires re-ingestion to apply)"
-    #         )
-    #         
-    #         gr.Markdown("_TODO: Wire up these settings to actually affect the RAG pipeline_")
+    #TODO: OPTION 2 - Advanced Interface with Blocks (More Features)
+    #Use this for a more customized interface with multiple features
+    
+    with gr.Blocks(theme=gr.themes.Soft(), title="EcoGuide Chatbot") as interface:
+        gr.Markdown("# 🌍 EcoGuide - Your Climate Change Assistant")
+        gr.Markdown("Ask questions about climate change and get AI-powered answers with sources!")
+        
+        with gr.Tab("💬 Chat"):
+            chatbot = gr.Chatbot(
+                height=500,
+                show_label=False,
+                avatar_images=(None, "🌍")  # User, Bot avatars
+            )
+            msg = gr.Textbox(
+                placeholder="Type your question here...",
+                show_label=False,
+                container=False
+            )
+            
+            with gr.Row():
+                submit = gr.Button("Send 📤", variant="primary")
+                clear = gr.Button("Clear 🗑️")
+                export = gr.Button("Export 💾")
+            
+            # Examples
+            gr.Examples(
+                examples=[
+                    "What is climate change?",
+                    "How can I reduce my carbon footprint?",
+                    "What are carbon offset strategies?",
+                    "Recommend sustainable products"
+                ],
+                inputs=msg
+            )
+            
+            # Wire up the interactions
+            msg.submit(chatbot_response, [msg, chatbot], [chatbot])
+            submit.click(chatbot_response, [msg, chatbot], [chatbot])
+            clear.click(reset_conversation, None, [chatbot, msg])
+            export.click(export_conversation, [chatbot], [gr.Textbox(label="Export Path")])
+         
+        with gr.Tab("📁 Documents"):
+            gr.Markdown("### Upload New Documents")
+            file_upload = gr.File(
+                label="Upload PDF, HTML, DOCX, or CSV files",
+                file_types=[".pdf", ".html", ".docx", ".csv"]
+            )
+            upload_btn = gr.Button("Upload & Ingest 📤", variant="primary")
+            upload_status = gr.Textbox(label="Status", interactive=False)
+            
+            upload_btn.click(upload_document, [file_upload], [upload_status])
+             
+            gr.Markdown("### Current Documents")
+            gr.Markdown("- Greenhouse_ga_protocol_corporate_standard_FAQ.html")
+            gr.Markdown("- sustainable_products.csv")
+            gr.Markdown("_TODO: Make this dynamic by reading from data folder_")
+         
+        with gr.Tab("⚙️ Settings"):
+            gr.Markdown("### RAG Settings")
+            
+            num_chunks = gr.Slider(
+                minimum=1,
+                maximum=10,
+                value=5,
+                step=1,
+                label="Number of chunks to retrieve",
+                info="More chunks = more context but slower"
+            )
+             
+            show_sources = gr.Checkbox(
+                label="Show source citations",
+                value=True,
+                info="Display which documents were used for the answer"
+            )
+             
+            chunking_strategy = gr.Dropdown(
+                choices=["token", "sentence", "semantic"],
+                value="token",
+                label="Chunking Strategy",
+                info="How to split documents (requires re-ingestion to apply)"
+            )
+             
+            gr.Markdown("_TODO: Wire up these settings to actually affect the RAG pipeline_")
     
     # PLACEHOLDER: Simple interface until you implement one of the above
+    '''
     interface = gr.Interface(
         fn=lambda x: "🚧 **Not Implemented Yet**\n\nTODO: Complete the Gradio interface implementation.\n\nSee gradio_app.py for detailed instructions.",
         inputs=gr.Textbox(label="Your Question", placeholder="Ask about climate change..."),
@@ -432,6 +433,7 @@ def create_interface():
             "Recommend sustainable products"
         ]
     )
+    '''
     
     return interface
 
@@ -451,14 +453,14 @@ def main():
     print("=" * 80)
     
     # TODO: Uncomment and configure launch parameters
-    # interface = create_interface()
-    # interface.launch(
-    #     server_name="0.0.0.0",  # Listen on all network interfaces
-    #     server_port=7860,        # Port number
-    #     share=False,             # Set True to create public link (via Gradio servers)
-    #     debug=True,              # Enable debug mode for development
-    #     show_error=True          # Show detailed errors
-    # )
+    interface = create_interface()
+    interface.launch(
+        server_name="0.0.0.0",  # Listen on all network interfaces
+        server_port=7860,        # Port number
+        share=False,             # Set True to create public link (via Gradio servers)
+        debug=True,              # Enable debug mode for development
+        show_error=True          # Show detailed errors
+    )
     
     # PLACEHOLDER: Show instructions
     print("\n⚠️  Gradio interface not yet implemented!")
