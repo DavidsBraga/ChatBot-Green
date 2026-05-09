@@ -30,10 +30,10 @@ import os
 
 # TODO: Import the necessary components from your RAG system
 # Hint: You'll need FAISSIndex, LLM, and possibly EmbeddingsService
-# from src.services.vectorial_db.faiss_index import FAISSIndex
-# from src.services.models.llm import LLM
-# from src.services.models.embeddings import EmbeddingsService
-# from src.ingestion.ingest_files import ingest_files_data_folder
+from src.services.vectorial_db.faiss_index import FAISSIndex
+from src.services.models.llm import LLM
+from src.services.models.embeddings import EmbeddingsService
+from src.ingestion.ingest_files import ingest_files_data_folder
 
 
 # Load environment variables
@@ -192,7 +192,7 @@ def reset_conversation():
     # TODO: Clear the conversation history
     # return [], "Conversation reset! Ask me anything about climate change."
     
-    return [], "Conversation reset!"
+    return [], "Conversation reset! <3"
 
 
 def export_conversation(history):
