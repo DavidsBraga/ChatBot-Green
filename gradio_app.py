@@ -123,6 +123,15 @@ CUSTOM_CSS = f"""
   }}
 }}
 
+@keyframes ecoButtonGlow {{
+  0%, 100% {{
+    box-shadow: 0 8px 20px rgba(11, 61, 46, 0.12);
+  }}
+  50% {{
+    box-shadow: 0 10px 26px rgba(134, 188, 37, 0.30);
+  }}
+}}
+
 .gradio-container {{
   background: var(--eco-bg) !important;
   color: #10231b;
@@ -269,6 +278,7 @@ CUSTOM_CSS = f"""
   border-color: var(--eco-green) !important;
   color: #0b1f16 !important;
   font-weight: 700 !important;
+  animation: ecoButtonGlow 3.6s ease-in-out infinite;
 }}
 
 .secondary-action button, button.secondary-action {{
@@ -287,6 +297,52 @@ CUSTOM_CSS = f"""
 
 button {{
   border-radius: 8px !important;
+  transform: translateY(0) scale(1);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease !important;
+  will-change: transform, box-shadow;
+}}
+
+button:hover {{
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 12px 26px rgba(11, 61, 46, 0.18) !important;
+  filter: brightness(1.03);
+}}
+
+button:active {{
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 5px 14px rgba(11, 61, 46, 0.12) !important;
+  filter: brightness(0.98);
+}}
+
+button:focus-visible {{
+  outline: 3px solid rgba(134, 188, 37, 0.42) !important;
+  outline-offset: 2px !important;
+}}
+
+button:disabled,
+button[disabled],
+button[aria-disabled="true"] {{
+  transform: none !important;
+  box-shadow: none !important;
+  filter: grayscale(0.15) opacity(0.72);
+  cursor: not-allowed !important;
+  animation: none !important;
+}}
+
+.secondary-action button:hover,
+button.secondary-action:hover {{
+  border-color: rgba(134, 188, 37, 0.55) !important;
+}}
+
+.danger-action button:hover,
+button.danger-action:hover {{
+  box-shadow: 0 12px 26px rgba(109, 21, 21, 0.18) !important;
+  filter: brightness(1.01);
 }}
 
 textarea, input {{
