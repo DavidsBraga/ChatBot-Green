@@ -61,7 +61,23 @@ gradio_client_utils.get_type = _safe_get_type
 
 APP_DIR = Path(__file__).resolve().parent
 os.chdir(APP_DIR)
-load_dotenv(APP_DIR / ".env", override=True)
+
+
+def load_app_environment() -> None:
+    env_candidates = [
+        APP_DIR / ".env",
+        APP_DIR / "gen-ai-business-case-recruiting" / ".env",
+        Path.home() / "Desktop" / "gen-ai-business-case-recruiting" / ".env",
+    ]
+    for env_path in env_candidates:
+        if env_path.exists():
+            load_dotenv(env_path, override=True)
+            return
+
+    load_dotenv(override=True)
+
+
+load_app_environment()
 
 USERS_FILE = APP_DIR / "users.json"
 CONVERSATIONS_FILE = APP_DIR / "conversations.json"

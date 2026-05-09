@@ -76,7 +76,7 @@ class Embeddings:
         azure_endpoint = os.getenv("AZURE_EMBEDDINGS_ENDPOINT")
         azure_deployment = os.getenv("AZURE_EMBEDDINGS_DEPLOYMENT_NAME")
         api_key = os.getenv("AZURE_EMBEDDINGS_API_KEY")
-        api_version = os.getenv("AZURE_LLM_API_VERSION")  # Shared with LLM
+        api_version = os.getenv("AZURE_EMBEDDINGS_API_VERSION") or os.getenv("AZURE_LLM_API_VERSION")
 
         # Store the model name for API calls
         self.model = os.getenv("AZURE_EMBEDDINGS_MODEL_NAME")
