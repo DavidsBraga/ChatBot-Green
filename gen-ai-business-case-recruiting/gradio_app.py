@@ -820,7 +820,7 @@ def create_interface() -> gr.Blocks:
                 )
                 with gr.Row():
                     landing_login_btn = gr.Button("Login", elem_classes=["primary-action"])
-                    landing_register_btn = gr.Button("Registo", elem_classes=["secondary-action"])
+                    landing_register_btn = gr.Button("Register", elem_classes=["secondary-action"])
 
             with gr.Column(visible=False, elem_id="auth-card") as login_page:
                 gr.Markdown("## Login")
@@ -832,11 +832,11 @@ def create_interface() -> gr.Blocks:
                     login_back_btn = gr.Button("Back", elem_classes=["secondary-action"])
 
             with gr.Column(visible=False, elem_id="auth-card") as register_page:
-                gr.Markdown("## Registo")
-                register_name = gr.Textbox(label="Nome")
+                gr.Markdown("## Register")
+                register_name = gr.Textbox(label="Name")
                 register_email = gr.Textbox(label="Email")
                 register_password = gr.Textbox(label="Password", type="password")
-                register_confirm_password = gr.Textbox(label="Confirmar password", type="password")
+                register_confirm_password = gr.Textbox(label="Confirm password", type="password")
                 register_status = gr.Markdown("", elem_classes=["status-line"])
                 with gr.Row():
                     create_account_btn = gr.Button("Create account", elem_classes=["primary-action"])
