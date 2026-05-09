@@ -133,3 +133,10 @@ dmypy.json
 # HTML
 *.html~
 .sass-cache/
+
+# EcoGuide local runtime data
+gen-ai-business-case-recruiting/users.json
+gen-ai-business-case-recruiting/conversations.json
+gen-ai-business-case-recruiting/exports/
+gen-ai-business-case-recruiting/uploaded_documents/
+gen-ai-business-case-recruiting/gradio_server.*.log

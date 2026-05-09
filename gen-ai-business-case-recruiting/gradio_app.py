@@ -74,6 +74,10 @@ load_dotenv(APP_DIR / ".env", override=True)
 
 USERS_FILE = APP_DIR / "users.json"
 CONVERSATIONS_FILE = APP_DIR / "conversations.json"
+EXPORTS_DIR = APP_DIR / "exports"
+DEMO_EMAIL = "demo@ecoguide.test"
+DEMO_PASSWORD = "demo123"
+DEMO_NAME = "EcoGuide Demo User"
 
 PRIMARY_GREEN = "#86BC25"
 DARK_GREEN = "#0B3D2E"
@@ -96,6 +100,26 @@ CUSTOM_CSS = f"""
   --eco-bg: {LIGHT_BG};
 }}
 
+@keyframes ecoFadeIn {{
+  from {{
+    opacity: 0;
+    transform: translateY(12px);
+  }}
+  to {{
+    opacity: 1;
+    transform: translateY(0);
+  }}
+}}
+
+@keyframes ecoPulseLine {{
+  0%, 100% {{
+    box-shadow: 0 0 0 rgba(134, 188, 37, 0);
+  }}
+  50% {{
+    box-shadow: 0 0 22px rgba(134, 188, 37, 0.28);
+  }}
+}}
+
 .gradio-container {{
   background: var(--eco-bg) !important;
   color: #10231b;
@@ -113,6 +137,7 @@ CUSTOM_CSS = f"""
   border-radius: 8px;
   box-shadow: 0 18px 48px rgba(11, 61, 46, 0.12);
   padding: 34px;
+  animation: ecoFadeIn 420ms ease-out both;
 }}
 
 #landing-brand {{
@@ -122,6 +147,18 @@ CUSTOM_CSS = f"""
   font-weight: 800;
   letter-spacing: 0;
   margin-bottom: 10px;
+  position: relative;
+}}
+
+#landing-brand::after {{
+  content: "";
+  display: block;
+  width: 86px;
+  height: 5px;
+  margin-top: 16px;
+  border-radius: 999px;
+  background: var(--eco-green);
+  animation: ecoPulseLine 2.4s ease-in-out infinite;
 }}
 
 #landing-subtitle {{
@@ -135,6 +172,7 @@ CUSTOM_CSS = f"""
   border-radius: 8px;
   padding: 18px;
   min-height: 650px;
+  animation: ecoFadeIn 420ms ease-out both;
 }}
 
 #sidebar * {{
@@ -152,6 +190,7 @@ CUSTOM_CSS = f"""
   padding: 18px;
   min-height: 650px;
   box-shadow: 0 14px 38px rgba(11, 61, 46, 0.10);
+  animation: ecoFadeIn 480ms ease-out both;
 }}
 
 #chat-title {{
@@ -181,6 +220,7 @@ CUSTOM_CSS = f"""
   border-color: var(--eco-green) !important;
   color: #0b1f16 !important;
   font-weight: 700 !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
 }}
 
 .secondary-action button, button.secondary-action {{
@@ -188,6 +228,7 @@ CUSTOM_CSS = f"""
   border-color: rgba(11, 61, 46, 0.25) !important;
   color: var(--eco-dark) !important;
   font-weight: 650 !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
 }}
 
 .danger-action button, button.danger-action {{
@@ -195,6 +236,15 @@ CUSTOM_CSS = f"""
   border-color: #e7aaaa !important;
   color: #6d1515 !important;
   font-weight: 650 !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease !important;
+}}
+
+.primary-action button:hover, button.primary-action:hover,
+.secondary-action button:hover, button.secondary-action:hover,
+.danger-action button:hover, button.danger-action:hover {{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(11, 61, 46, 0.18) !important;
+  filter: brightness(1.02);
 }}
 
 .status-line {{
@@ -210,8 +260,17 @@ textarea, input {{
   border-radius: 8px !important;
 }}
 
+textarea:focus, input:focus {{
+  border-color: var(--eco-green) !important;
+  box-shadow: 0 0 0 3px rgba(134, 188, 37, 0.16) !important;
+}}
+
 button {{
   border-radius: 8px !important;
+}}
+
+.tabitem {{
+  animation: ecoFadeIn 260ms ease-out both;
 }}
 
 @media (max-width: 820px) {{
@@ -242,6 +301,7 @@ def read_json(path: Path, default: Any) -> Any:
 
 
 def write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
@@ -272,6 +332,22 @@ def hash_password(password: str, salt: str) -> str:
 def verify_password(password: str, user: dict[str, Any]) -> bool:
     salt = user.get("salt", "")
     return hash_password(password, salt) == user.get("password_hash")
+
+
+def ensure_demo_user() -> None:
+    users = load_users()
+    salt = users.get(DEMO_EMAIL, {}).get("salt") or secrets.token_hex(16)
+    users[DEMO_EMAIL] = {
+        "name": DEMO_NAME,
+        "email": DEMO_EMAIL,
+        "salt": salt,
+        "password_hash": hash_password(DEMO_PASSWORD, salt),
+        "confirmed": True,
+        "created_at": users.get(DEMO_EMAIL, {}).get("created_at", utc_now()),
+        "confirmed_at": users.get(DEMO_EMAIL, {}).get("confirmed_at", utc_now()),
+        "demo": True,
+    }
+    save_users(users)
 
 
 def title_from_message(message: str) -> str:
@@ -564,6 +640,22 @@ def theme_style(mode: str) -> str:
             border-color: #8a4848 !important;
             color: #ffe5e5 !important;
           }}
+          .tabitem, .tabs, .tab-nav {{
+            background: transparent !important;
+            color: #edf7ec !important;
+          }}
+          .tab-container button {{
+            color: #edf7ec !important;
+            background: rgba(237, 247, 236, 0.08) !important;
+          }}
+          [role="tab"] {{
+            color: #edf7ec !important;
+          }}
+          .tab-container button.selected,
+          [role="tab"][aria-selected="true"] {{
+            color: #0b1f16 !important;
+            background: {PRIMARY_GREEN} !important;
+          }}
         </style>
         """
 
@@ -599,8 +691,8 @@ def theme_style(mode: str) -> str:
 
 def toggle_theme(current_mode: str | None):
     next_mode = "dark" if current_mode != "dark" else "light"
-    button_label = "Modo claro" if next_mode == "dark" else "Modo escuro"
-    status = "Tema escuro ativo." if next_mode == "dark" else "Tema claro ativo."
+    button_label = "Light mode" if next_mode == "dark" else "Dark mode"
+    status = "Dark theme active." if next_mode == "dark" else "Light theme active."
     return next_mode, theme_style(next_mode), gr.update(value=button_label), status
 
 
@@ -798,7 +890,64 @@ def send_message(message: str, chat_history: list[Any] | None, user_email: str |
     )
 
 
+def clear_conversation(user_email: str | None, active_id: str | None):
+    if not user_email:
+        return [], active_id, conversation_dropdown_update(None), gr.update(), "Login required."
+
+    conversation = get_conversation(active_id, user_email)
+    if not conversation:
+        return [], active_id, conversation_dropdown_update(user_email, active_id), gr.update(), "No active chat to clear."
+
+    conversation["messages"] = []
+    conversation["updated_at"] = utc_now()
+    update_conversation(conversation)
+
+    return (
+        [],
+        conversation["id"],
+        conversation_dropdown_update(user_email, conversation["id"]),
+        gr.update(value=conversation.get("title", "New chat")),
+        "Conversation cleared.",
+    )
+
+
+def export_conversation(user_email: str | None, active_id: str | None):
+    if not user_email:
+        return "Login required.", gr.update(value=None, visible=False)
+
+    conversation = get_conversation(active_id, user_email)
+    if not conversation:
+        return "No active chat to export.", gr.update(value=None, visible=False)
+
+    messages = conversation.get("messages", [])
+    if not messages:
+        return "This chat is empty.", gr.update(value=None, visible=False)
+
+    EXPORTS_DIR.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_title = "".join(char if char.isalnum() else "_" for char in conversation.get("title", "chat")).strip("_")
+    safe_title = safe_title[:40] or "chat"
+    export_path = EXPORTS_DIR / f"{safe_title}_{timestamp}.md"
+
+    lines = [
+        f"# {conversation.get('title', 'EcoGuide conversation')}",
+        "",
+        f"- User: {normalize_email(user_email)}",
+        f"- Created at: {conversation.get('created_at', '')}",
+        f"- Exported at: {utc_now()}",
+        "",
+    ]
+    for message in messages:
+        role = "User" if message.get("role") == "user" else "EcoGuide"
+        lines.extend([f"## {role}", "", str(message.get("content", "")), ""])
+
+    export_path.write_text("\n".join(lines), encoding="utf-8")
+    return f"Conversation exported: `{export_path.name}`", gr.update(value=str(export_path), visible=True)
+
+
 def create_interface() -> gr.Blocks:
+    ensure_demo_user()
+
     with gr.Blocks(css=CUSTOM_CSS, title="EcoGuide") as app:
         current_user = gr.State(None)
         active_conversation_id = gr.State(None)
@@ -808,8 +957,8 @@ def create_interface() -> gr.Blocks:
         with gr.Column(elem_id="app-shell"):
             theme_override = gr.HTML(theme_style("light"))
             with gr.Row(elem_id="theme-bar"):
-                theme_status = gr.Markdown("Tema claro ativo.", elem_id="theme-status")
-                theme_btn = gr.Button("Modo escuro", elem_classes=["secondary-action"])
+                theme_status = gr.Markdown("Light theme active.", elem_id="theme-status")
+                theme_btn = gr.Button("Dark mode", elem_classes=["secondary-action"])
 
             with gr.Column(visible=True, elem_id="landing-card") as landing_page:
                 gr.HTML(
@@ -824,6 +973,7 @@ def create_interface() -> gr.Blocks:
 
             with gr.Column(visible=False, elem_id="auth-card") as login_page:
                 gr.Markdown("## Login")
+                gr.Markdown(f"Demo account: `{DEMO_EMAIL}` / `{DEMO_PASSWORD}`")
                 login_email = gr.Textbox(label="Email")
                 login_password = gr.Textbox(label="Password", type="password")
                 login_status = gr.Markdown("", elem_classes=["status-line"])
@@ -873,12 +1023,16 @@ def create_interface() -> gr.Blocks:
                         message_box = gr.Textbox(
                             label="Message",
                             placeholder="Ask EcoGuide about climate change or sustainable recommendations",
-                            lines=3,
+                            lines=1,
                         )
                         with gr.Row():
-                            send_btn = gr.Button("Send", elem_classes=["primary-action"])
+                            send_btn = gr.Button("Submit", elem_classes=["primary-action"])
+                            clear_chat_btn = gr.Button("Clear chat", elem_classes=["secondary-action"])
+                            export_chat_btn = gr.Button("Export chat", elem_classes=["secondary-action"])
                             main_new_chat_btn = gr.Button("New conversation", elem_classes=["secondary-action"])
                             main_logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
+                        export_status = gr.Markdown("", elem_classes=["status-line"])
+                        export_file = gr.File(label="Download export", visible=False, interactive=False)
 
                         gr.Examples(
                             examples=[
@@ -1017,6 +1171,16 @@ def create_interface() -> gr.Blocks:
             send_message,
             inputs=[message_box, chatbot, current_user, active_conversation_id],
             outputs=send_outputs,
+        )
+        clear_chat_btn.click(
+            clear_conversation,
+            inputs=[current_user, active_conversation_id],
+            outputs=[chatbot, active_conversation_id, conversation_select, rename_input, chat_status],
+        )
+        export_chat_btn.click(
+            export_conversation,
+            inputs=[current_user, active_conversation_id],
+            outputs=[export_status, export_file],
         )
         upload_btn.click(
             upload_document,
