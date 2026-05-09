@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -81,6 +82,11 @@ LIGHT_BG = "#F6FFF2"
 _llm = None
 _index = None
 _rag_ready = False
+APP_SETTINGS = {
+    "num_chunks": 5,
+    "show_sources": True,
+    "chunking_strategy": "token",
+}
 
 
 CUSTOM_CSS = f"""
@@ -446,9 +452,76 @@ def history_to_llm_messages(chat_history: list[Any] | None) -> list[dict[str, st
 def rag_answer(message: str, chat_history: list[Any] | None) -> str:
     initialize_rag_once()
     llm_history = history_to_llm_messages(chat_history)
-    retrieved_chunks = _index.retrieve_chunks(message, num_chunks=5)
+    num_chunks = int(APP_SETTINGS.get("num_chunks", 5))
+    retrieved_chunks = _index.retrieve_chunks(message, num_chunks=num_chunks)
     context = "\n\n#####\n\n".join(retrieved_chunks)
-    return _llm.get_response(llm_history, context, message)
+    response = _llm.get_response(llm_history, context, message)
+
+    if APP_SETTINGS.get("show_sources", True):
+        response += (
+            "\n\n---\n"
+            "**Sources:** Retrieved from the indexed FAISS knowledge base. "
+            "Document/page-level citations still require metadata support in the vector index."
+        )
+
+    return response
+
+
+def list_indexed_documents() -> str:
+    data_dir = APP_DIR / "data"
+    uploaded_dir = APP_DIR / "uploaded_documents"
+    supported = {".pdf", ".html", ".htm", ".docx", ".pptx", ".csv"}
+    lines = ["### Current documents"]
+
+    for folder, label in ((data_dir, "Data folder"), (uploaded_dir, "Uploaded")):
+        if not folder.exists():
+            continue
+        files = sorted(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in supported)
+        if not files:
+            continue
+        lines.append(f"\n**{label}**")
+        for path in files:
+            lines.append(f"- `{path.name}`")
+
+    if len(lines) == 1:
+        lines.append("\nNo supported documents found yet.")
+
+    return "\n".join(lines)
+
+
+def upload_document(file):
+    if file is None:
+        return "Choose a file first.", list_indexed_documents()
+
+    source_path = Path(getattr(file, "name", file))
+    if not source_path.exists():
+        return "Could not read the uploaded file.", list_indexed_documents()
+
+    supported = {".pdf", ".html", ".htm", ".docx", ".pptx", ".csv"}
+    if source_path.suffix.lower() not in supported:
+        return "Unsupported file type. Use PDF, HTML, DOCX, PPTX or CSV.", list_indexed_documents()
+
+    upload_dir = APP_DIR / "uploaded_documents"
+    upload_dir.mkdir(exist_ok=True)
+    destination = upload_dir / source_path.name
+    shutil.copy2(source_path, destination)
+
+    return (
+        f"Saved `{source_path.name}` to `uploaded_documents/`. "
+        "The base RAG ingestion still uses the original `data/` folder unless re-indexing is wired later.",
+        list_indexed_documents(),
+    )
+
+
+def update_rag_settings(num_chunks: int, show_sources: bool, chunking_strategy: str):
+    APP_SETTINGS["num_chunks"] = int(num_chunks)
+    APP_SETTINGS["show_sources"] = bool(show_sources)
+    APP_SETTINGS["chunking_strategy"] = chunking_strategy
+    return (
+        f"Settings saved: {APP_SETTINGS['num_chunks']} chunks, "
+        f"sources {'on' if APP_SETTINGS['show_sources'] else 'off'}, "
+        f"chunking strategy `{APP_SETTINGS['chunking_strategy']}`."
+    )
 
 
 def theme_style(mode: str) -> str:
@@ -788,21 +861,68 @@ def create_interface() -> gr.Blocks:
 
                 with gr.Column(scale=4, elem_id="chat-card"):
                     gr.HTML('<div id="chat-title">EcoGuide Chatbot</div>')
-                    chatbot = gr.Chatbot(
-                        label="EcoGuide Chatbot",
-                        type="messages",
-                        height=500,
-                        show_label=False,
-                    )
-                    message_box = gr.Textbox(
-                        label="Message",
-                        placeholder="Ask EcoGuide about climate change or sustainable recommendations",
-                        lines=3,
-                    )
-                    with gr.Row():
-                        send_btn = gr.Button("Send", elem_classes=["primary-action"])
-                        main_new_chat_btn = gr.Button("New conversation", elem_classes=["secondary-action"])
-                        main_logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
+                    gr.Markdown("Ask questions about climate change and get AI-powered answers with sources.")
+
+                    with gr.Tab("Chat"):
+                        chatbot = gr.Chatbot(
+                            label="EcoGuide Chatbot",
+                            type="messages",
+                            height=500,
+                            show_label=False,
+                        )
+                        message_box = gr.Textbox(
+                            label="Message",
+                            placeholder="Ask EcoGuide about climate change or sustainable recommendations",
+                            lines=3,
+                        )
+                        with gr.Row():
+                            send_btn = gr.Button("Send", elem_classes=["primary-action"])
+                            main_new_chat_btn = gr.Button("New conversation", elem_classes=["secondary-action"])
+                            main_logout_btn = gr.Button("Logout", elem_classes=["secondary-action"])
+
+                        gr.Examples(
+                            examples=[
+                                "What is climate change?",
+                                "How can I reduce my carbon footprint?",
+                                "What are carbon offset strategies?",
+                                "Recommend sustainable products",
+                            ],
+                            inputs=message_box,
+                        )
+
+                    with gr.Tab("Documents"):
+                        gr.Markdown("### Upload New Documents")
+                        file_upload = gr.File(
+                            label="Upload PDF, HTML, DOCX, PPTX or CSV files",
+                            file_types=[".pdf", ".html", ".docx", ".pptx", ".csv"],
+                        )
+                        upload_btn = gr.Button("Upload document", elem_classes=["primary-action"])
+                        upload_status = gr.Markdown("", elem_classes=["status-line"])
+                        documents_list = gr.Markdown(list_indexed_documents())
+
+                    with gr.Tab("Settings"):
+                        gr.Markdown("### RAG Settings")
+                        num_chunks = gr.Slider(
+                            minimum=1,
+                            maximum=10,
+                            value=APP_SETTINGS["num_chunks"],
+                            step=1,
+                            label="Number of chunks to retrieve",
+                            info="More chunks means more context, but slower answers.",
+                        )
+                        show_sources = gr.Checkbox(
+                            label="Show source note",
+                            value=APP_SETTINGS["show_sources"],
+                            info="Display that answers are grounded in the FAISS knowledge base.",
+                        )
+                        chunking_strategy = gr.Dropdown(
+                            choices=["token", "sentence", "semantic"],
+                            value=APP_SETTINGS["chunking_strategy"],
+                            label="Chunking strategy",
+                            info="Currently saved for demo control; re-indexing still uses the starter-kit ingestion flow.",
+                        )
+                        save_settings_btn = gr.Button("Save settings", elem_classes=["primary-action"])
+                        settings_status = gr.Markdown("", elem_classes=["status-line"])
 
         panel_outputs = [landing_page, login_page, register_page, chat_page]
 
@@ -897,6 +1017,16 @@ def create_interface() -> gr.Blocks:
             send_message,
             inputs=[message_box, chatbot, current_user, active_conversation_id],
             outputs=send_outputs,
+        )
+        upload_btn.click(
+            upload_document,
+            inputs=[file_upload],
+            outputs=[upload_status, documents_list],
+        )
+        save_settings_btn.click(
+            update_rag_settings,
+            inputs=[num_chunks, show_sources, chunking_strategy],
+            outputs=[settings_status],
         )
 
     return app
