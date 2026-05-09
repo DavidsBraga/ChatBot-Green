@@ -911,7 +911,7 @@ def create_interface() -> gr.Blocks:
                             info="More chunks means more context, but slower answers.",
                         )
                         show_sources = gr.Checkbox(
-                            label="Show source note",
+                            label="Show source citations in answers",
                             value=APP_SETTINGS["show_sources"],
                             info="Display that answers are grounded in the FAISS knowledge base.",
                         )
