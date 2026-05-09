@@ -1,0 +1,51 @@
+Product ID,Product Name,Description,Category,Colors,Review Score,Countries,Price ($)
+1,EcoSip Stainless Steel Straw Set,"Reusable straws to reduce plastic waste",Reusable Items,"Silver; Gold; Rose Gold; Black",4.8,"Germany; France; Netherlands; Belgium; Denmark",9.99
+2,Bamboo Toothbrush Pack,"Eco-friendly toothbrush made from bamboo",Personal Care,Natural,4.6,"Spain; Italy; Portugal; Greece",5.99
+3,Solar Charger Pro,"Portable solar charger for devices",Renewable Energy,"Black; Green",4.3,"Germany; Sweden; Finland; Austria",29.99
+4,Organic Cotton Tote Bag,"Sustainable alternative to plastic bags",Reusable Items,"White; Beige; Black",4.7,"France; Belgium; Netherlands; Ireland",7.49
+5,LED Smart Bulb,"Energy-efficient LED bulb with smart control",Energy Efficiency,"Adjustable Color Temperatures",4.5,"France; Germany; Netherlands; Italy",12.99
+6,Recycled Polyester T-Shirt,"T-shirt made from recycled plastic bottles",Sustainable Fashion,"Blue; Grey; Black; White",4.4,"France; Germany; Spain; Italy",19.99
+7,Biodegradable Plant Pots,"Compostable pots for gardening",Reusable Items,Brown,4.2,"Poland; Czech Republic; Hungary",8.99
+8,Natural Deodorant Stick,"Aluminum-free deodorant with natural scents",Personal Care,"Lavender; Citrus; Unscented",4.5,"Sweden; Norway; Denmark; Finland",11.49
+9,Solar Lantern,"Solar-powered outdoor lantern",Renewable Energy,"Black; Bronze",4.6,"Spain; Portugal; Greece; Italy",24.99
+10,Smart Thermostat,"Energy-saving thermostat for home heating",Energy Efficiency,"White; Black",4.7,"Germany; France; UK; Netherlands",199.99
+11,Cork Backpack,"Durable backpack made from sustainable cork",Sustainable Fashion,"Green; Brown; Black",4.3,"Austria; Switzerland; Germany",49.99
+12,Reusable Beeswax Food Wraps,"Sustainable alternative to plastic wrap",Reusable Items,"Floral Patterns; Geometric Patterns",4.6,"France; Belgium; Netherlands",14.99
+13,Organic Shampoo Bar,"Solid shampoo with organic ingredients",Personal Care,"Mint; Rose; Coconut",4.5,"UK; Ireland; Germany; Sweden",9.49
+14,Solar Power Bank,"Solar-charged power bank for electronics",Renewable Energy,"Black; Silver",4.4,"Italy; Spain; Greece; Portugal",34.99
+15,LED Desk Lamp,"Energy-efficient lamp with adjustable light",Energy Efficiency,"White; Black; Silver",4.3,"France; Germany; Austria; Netherlands",29.99
+16,Organic Linen Scarf,"Scarf made from organic linen",Sustainable Fashion,"Beige; Grey; Blue",4.5,"Italy; France; Spain; Portugal",24.99
+17,Reusable Coffee Cup,"Eco-friendly cup for coffee on the go",Reusable Items,"Red; Blue; Green; Black",4.7,"UK; Germany; France; Denmark",12.99
+18,Natural Lip Balm,"Moisturizing lip balm with natural oils",Personal Care,"Vanilla; Berry; Mint",4.6,"Sweden; Finland; Norway; Denmark",5.49
+19,Wind-Up Flashlight,"Flashlight powered by hand crank",Renewable Energy,"Black; Yellow",4.2,"Germany; Austria; Switzerland",14.99
+20,Energy-Saving Power Strip,"Power strip that reduces standby power usage",Energy Efficiency,"White; Black",4.4,"France; UK; Netherlands; Belgium",19.99
+21,Cork Wallet,"Wallet made from sustainable cork material",Sustainable Fashion,"Natural; Dark Brown",4.5,"Portugal; Spain; Italy; France",29.99
+22,Reusable Produce Bags,"Mesh bags for fruits and vegetables",Reusable Items,"White; Beige",4.6,"Germany; France; Netherlands; Sweden",9.99
+23,Bamboo Razor,"Sustainable razor with bamboo handle",Personal Care,Natural Bamboo,4.3,"UK; Ireland; Germany; Denmark",19.99
+24,Solar Garden Lights,"Solar-powered lights for garden decoration",Renewable Energy,"White; Multicolor",4.4,"France; Italy; Spain; Portugal",24.99
+25,Insulated Thermal Curtains,"Curtains that improve home insulation",Energy Efficiency,"Beige; Grey; Blue",4.2,"Germany; Austria; Switzerland; Poland",49.99
+26,Organic Cotton Socks,"Socks made from organic cotton",Sustainable Fashion,"White; Black; Grey; Navy",4.5,"France; UK; Germany; Netherlands",12.99
+27,Glass Water Bottle,"Reusable bottle made from tempered glass",Reusable Items,"Clear; Blue; Green",4.7,"Sweden; Norway; Finland; Denmark",14.99
+28,Natural Bamboo Comb,"Eco-friendly comb made from bamboo",Personal Care,Natural,4.6,"Italy; Spain; Greece; Portugal",7.99
+29,Solar Backpack,"Backpack with built-in solar panel",Renewable Energy,"Black; Grey",4.3,"Germany; France; UK; Netherlands",89.99
+30,Energy-Efficient Space Heater,"Heater designed to use less energy",Energy Efficiency,"White; Black",4.2,"UK; Ireland; Germany; Sweden",59.99
+31,Recycled Denim Jeans,"Jeans made from recycled denim material",Sustainable Fashion,"Blue; Black",4.4,"Italy; France; Spain; Germany",49.99
+32,Silicone Food Storage Bags,"Reusable bags for food storage",Reusable Items,"Clear; Blue; Green",4.5,"France; Belgium; Netherlands; Germany",15.99
+33,Organic Cotton Face Cloth,"Soft face cloth made from organic cotton",Personal Care,"White; Beige",4.7,"UK; Ireland; Sweden; Norway",6.99
+34,Solar Camping Lantern,"Collapsible lantern powered by solar energy",Renewable Energy,"Orange; Green",4.6,"Germany; Austria; Switzerland; Finland",29.99
+35,Programmable Thermostat,"Device to optimize home heating schedules",Energy Efficiency,White,4.5,"France; Germany; Netherlands; Belgium",99.99
+36,Recycled Plastic Sunglasses,"Sunglasses made from recycled plastics",Sustainable Fashion,"Black; Brown; Tortoise",4.3,"Spain; Italy; Greece; Portugal",24.99
+37,Reusable Silicone Straws,"Flexible straws made from food-grade silicone",Reusable Items,"Rainbow Colors",4.4,"Germany; France; UK; Netherlands",8.99
+38,Natural Loofah Sponge,"Biodegradable sponge for bathing",Personal Care,Natural,4.5,"Sweden; Norway; Denmark; Finland",5.99
+39,Solar-Powered Watch,"Watch powered by solar energy",Renewable Energy,"Black; Silver; Gold",4.2,"France; Germany; Italy; Spain",79.99
+40,LED String Lights,"Energy-saving decorative lights",Energy Efficiency,"Warm White; Multicolor",4.6,"Germany; Austria; Switzerland; Poland",16.99
+41,Bamboo Fiber T-Shirt,"T-shirt made from sustainable bamboo fibers",Sustainable Fashion,"Natural; Olive Green; Black",4.4,"France; UK; Germany; Netherlands",24.99
+42,Stainless Steel Lunch Box,"Durable, reusable lunch container",Reusable Items,Silver,4.7,"Germany; France; Sweden; Denmark",19.99
+43,Natural Body Soap Bar,"Soap made with organic ingredients",Personal Care,"Lavender; Oatmeal",4.5,"UK; Ireland; Germany; Sweden",7.49
+44,Solar Bicycle Light Set,"Bike lights powered by solar energy",Renewable Energy,Black,4.3,"Netherlands; Germany; Denmark; Belgium",22.99
+45,Energy-Saving Showerhead,"Reduces water and energy consumption",Energy Efficiency,"Chrome; White",4.6,"France; Italy; Spain; Portugal",29.99
+46,Recycled Rubber Sneakers,"Shoes made from recycled rubber materials",Sustainable Fashion,"Black; White; Grey",4.2,"Germany; France; UK; Netherlands",59.99
+47,Reusable Tea Infuser,"Stainless steel infuser for loose tea",Reusable Items,Silver,4.5,"UK; Ireland; Germany; Austria",9.99
+48,Organic Cotton Makeup Remover Pads,"Washable pads for makeup removal",Personal Care,White,4.6,"France; Belgium; Netherlands; Germany",12.49
+49,Solar Powered Radio,"Radio that runs on solar energy",Renewable Energy,"Black; Red",4.3,"Spain; Portugal; Italy; Greece",34.99
+50,Insulated Recycled Jacket,"Jacket made from recycled materials",Sustainable Fashion,"Black; Navy; Grey",4.4,"Germany; France; UK; Sweden",99.99
