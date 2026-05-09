@@ -125,10 +125,19 @@ CUSTOM_CSS = f"""
 
 @keyframes ecoButtonGlow {{
   0%, 100% {{
-    box-shadow: 0 8px 20px rgba(11, 61, 46, 0.12);
+    box-shadow: 0 8px 20px rgba(11, 61, 46, 0.14);
   }}
   50% {{
-    box-shadow: 0 10px 26px rgba(134, 188, 37, 0.30);
+    box-shadow: 0 12px 30px rgba(134, 188, 37, 0.42);
+  }}
+}}
+
+@keyframes ecoButtonBreath {{
+  0%, 100% {{
+    transform: translateY(0) scale(1);
+  }}
+  50% {{
+    transform: translateY(-1px) scale(1.015);
   }}
 }}
 
@@ -273,60 +282,91 @@ CUSTOM_CSS = f"""
   padding: 14px 0 10px 0;
 }}
 
-.primary-action button, button.primary-action {{
+.primary-action button,
+button.primary-action,
+.gradio-container .primary-action button {{
   background: var(--eco-green) !important;
   border-color: var(--eco-green) !important;
   color: #0b1f16 !important;
   font-weight: 700 !important;
-  animation: ecoButtonGlow 3.6s ease-in-out infinite;
+  animation: ecoButtonGlow 2.7s ease-in-out infinite, ecoButtonBreath 2.7s ease-in-out infinite;
 }}
 
-.secondary-action button, button.secondary-action {{
+.secondary-action button,
+button.secondary-action,
+.gradio-container .secondary-action button {{
   background: #ffffff !important;
   border-color: rgba(11, 61, 46, 0.25) !important;
   color: var(--eco-dark) !important;
   font-weight: 650 !important;
 }}
 
-.danger-action button, button.danger-action {{
+.danger-action button,
+button.danger-action,
+.gradio-container .danger-action button {{
   background: #f7d9d9 !important;
   border-color: #e7aaaa !important;
   color: #6d1515 !important;
   font-weight: 650 !important;
 }}
 
-button {{
+button,
+.gradio-container button {{
   border-radius: 8px !important;
   transform: translateY(0) scale(1);
+  position: relative;
+  overflow: hidden;
   transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    filter 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease !important;
+    transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 190ms ease,
+    filter 190ms ease,
+    border-color 190ms ease,
+    background-color 190ms ease !important;
   will-change: transform, box-shadow;
 }}
 
-button:hover {{
-  transform: translateY(-2px) scale(1.01);
-  box-shadow: 0 12px 26px rgba(11, 61, 46, 0.18) !important;
-  filter: brightness(1.03);
+button::after,
+.gradio-container button::after {{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.34) 46%, transparent 72%);
+  transform: translateX(-120%);
+  transition: transform 420ms ease;
+  pointer-events: none;
 }}
 
-button:active {{
-  transform: translateY(0) scale(0.98);
+button:hover,
+.gradio-container button:hover {{
+  transform: translateY(-4px) scale(1.025) !important;
+  box-shadow: 0 16px 34px rgba(11, 61, 46, 0.22) !important;
+  filter: brightness(1.06);
+}}
+
+button:hover::after,
+.gradio-container button:hover::after {{
+  transform: translateX(120%);
+}}
+
+button:active,
+.gradio-container button:active {{
+  transform: translateY(0) scale(0.96) !important;
   box-shadow: 0 5px 14px rgba(11, 61, 46, 0.12) !important;
   filter: brightness(0.98);
 }}
 
-button:focus-visible {{
+button:focus-visible,
+.gradio-container button:focus-visible {{
   outline: 3px solid rgba(134, 188, 37, 0.42) !important;
   outline-offset: 2px !important;
 }}
 
 button:disabled,
 button[disabled],
-button[aria-disabled="true"] {{
+.gradio-container button:disabled,
+.gradio-container button[disabled],
+button[aria-disabled="true"],
+.gradio-container button[aria-disabled="true"] {{
   transform: none !important;
   box-shadow: none !important;
   filter: grayscale(0.15) opacity(0.72);
@@ -335,11 +375,13 @@ button[aria-disabled="true"] {{
 }}
 
 .secondary-action button:hover,
+.gradio-container .secondary-action button:hover,
 button.secondary-action:hover {{
   border-color: rgba(134, 188, 37, 0.55) !important;
 }}
 
 .danger-action button:hover,
+.gradio-container .danger-action button:hover,
 button.danger-action:hover {{
   box-shadow: 0 12px 26px rgba(109, 21, 21, 0.18) !important;
   filter: brightness(1.01);
