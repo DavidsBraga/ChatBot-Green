@@ -1,0 +1,11 @@
+{
+  "test@example.com": {
+    "name": "Test",
+    "email": "test@example.com",
+    "salt": "8a90ab0c003e65be2c45fe02b7098100",
+    "password_hash": "46a1506662378b4c8b89cd553957301a22200a9b5663ee9fcc7b6ab914d6168e",
+    "confirmed": true,
+    "created_at": "2026-05-09T11:04:13.790471+00:00",
+    "confirmed_at": "2026-05-09T11:04:15.991812+00:00"
+  }
+}

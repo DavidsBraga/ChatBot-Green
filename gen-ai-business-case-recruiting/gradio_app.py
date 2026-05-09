@@ -86,6 +86,7 @@ APP_SETTINGS = {
     "num_chunks": 5,
     "show_sources": True,
     "chunking_strategy": "token",
+    "temperature": 0.7,
 }
 
 
@@ -455,7 +456,8 @@ def rag_answer(message: str, chat_history: list[Any] | None) -> str:
     num_chunks = int(APP_SETTINGS.get("num_chunks", 5))
     retrieved_chunks = _index.retrieve_chunks(message, num_chunks=num_chunks)
     context = "\n\n#####\n\n".join(retrieved_chunks)
-    response = _llm.get_response(llm_history, context, message)
+    temperature = float(APP_SETTINGS.get("temperature", 0.7))
+    response = _llm.get_response(llm_history, context, message, temperature=temperature)
 
     if APP_SETTINGS.get("show_sources", True):
         response += (
@@ -513,14 +515,22 @@ def upload_document(file):
     )
 
 
-def update_rag_settings(num_chunks: int, show_sources: bool, chunking_strategy: str):
+def update_rag_settings(
+    num_chunks: int,
+    show_sources: bool,
+    chunking_strategy: str,
+    temperature: float,
+):
     APP_SETTINGS["num_chunks"] = int(num_chunks)
     APP_SETTINGS["show_sources"] = bool(show_sources)
     APP_SETTINGS["chunking_strategy"] = chunking_strategy
+    APP_SETTINGS["temperature"] = float(temperature)
+
     return (
         f"Settings saved: {APP_SETTINGS['num_chunks']} chunks, "
         f"sources {'on' if APP_SETTINGS['show_sources'] else 'off'}, "
-        f"chunking strategy `{APP_SETTINGS['chunking_strategy']}`."
+        f"chunking strategy `{APP_SETTINGS['chunking_strategy']}`, "
+        f"temperature {APP_SETTINGS['temperature']:.2f}."
     )
 
 
@@ -915,6 +925,14 @@ def create_interface() -> gr.Blocks:
                             value=APP_SETTINGS["show_sources"],
                             info="Display that answers are grounded in the FAISS knowledge base.",
                         )
+                        temperature = gr.Slider(
+                            minimum=0.0,
+                            maximum=1.5,
+                            value=APP_SETTINGS["temperature"],
+                            step=0.1,
+                            label="LLM temperature",
+                            info="Lower values are more deterministic; higher values are more creative.",
+                        )
                         chunking_strategy = gr.Dropdown(
                             choices=["token", "sentence", "semantic"],
                             value=APP_SETTINGS["chunking_strategy"],
@@ -1025,7 +1043,7 @@ def create_interface() -> gr.Blocks:
         )
         save_settings_btn.click(
             update_rag_settings,
-            inputs=[num_chunks, show_sources, chunking_strategy],
+            inputs=[num_chunks, show_sources, temperature, chunking_strategy],
             outputs=[settings_status],
         )
 
