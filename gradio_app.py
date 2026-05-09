@@ -100,6 +100,10 @@ APP_SETTINGS = {
     "temperature": 0.7,
 }
 
+SUPPORTED_DOCUMENT_EXTENSIONS = {".pdf", ".html", ".htm", ".docx", ".pptx", ".csv"}
+UPLOADED_DOCUMENTS_DIR = APP_DIR / "uploaded_documents"
+FAISS_INDEX_DIR = APP_DIR / "faiss_index"
+
 
 CUSTOM_CSS = f"""
 :root {{
@@ -447,6 +451,78 @@ def update_conversation(conversation: dict[str, Any]) -> None:
     save_conversations(conversations)
 
 
+def uploaded_document_choices() -> list[tuple[str, str]]:
+    if not UPLOADED_DOCUMENTS_DIR.exists():
+        return []
+    return [
+        (path.name, path.name)
+        for path in sorted(UPLOADED_DOCUMENTS_DIR.iterdir())
+        if path.is_file() and path.suffix.lower() in SUPPORTED_DOCUMENT_EXTENSIONS
+    ]
+
+
+def uploaded_document_dropdown_update(selected_name: str | None = None):
+    choices = uploaded_document_choices()
+    valid_names = {value for _, value in choices}
+    value = selected_name if selected_name in valid_names else (choices[0][1] if choices else None)
+    return gr.update(choices=choices, value=value)
+
+
+def safe_uploaded_filename(filename: str) -> str:
+    cleaned = "".join(char if char.isalnum() or char in " ._-" else "_" for char in filename)
+    cleaned = cleaned.strip(" ._")
+    return cleaned or f"document_{uuid.uuid4().hex}"
+
+
+def make_unique_upload_path(filename: str) -> Path:
+    UPLOADED_DOCUMENTS_DIR.mkdir(exist_ok=True)
+    safe_name = safe_uploaded_filename(filename)
+    candidate = UPLOADED_DOCUMENTS_DIR / safe_name
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    for counter in range(2, 1000):
+        next_candidate = UPLOADED_DOCUMENTS_DIR / f"{stem}_{counter}{suffix}"
+        if not next_candidate.exists():
+            return next_candidate
+
+    return UPLOADED_DOCUMENTS_DIR / f"{stem}_{uuid.uuid4().hex[:8]}{suffix}"
+
+
+def ingest_document_file(index, path: Path) -> None:
+    from src.ingestion.loaders.loader import Loader
+
+    extension = path.suffix.lower().lstrip(".")
+    if extension == "csv":
+        return
+
+    loader = Loader(extension=extension, filepath=str(path))
+    if extension == "pdf":
+        for page_num, text in loader.loader.extract_text_by_page():
+            index.ingest_text(text=text, metadata={"source": path.name, "page": page_num})
+        return
+
+    text = loader.extract_text()
+    index.ingest_text(text=text, metadata={"source": path.name})
+
+
+def ingest_uploaded_documents(index) -> None:
+    for _, filename in uploaded_document_choices():
+        ingest_document_file(index, UPLOADED_DOCUMENTS_DIR / filename)
+
+
+def reset_rag_index_after_document_change() -> None:
+    global _llm, _index, _rag_ready
+
+    _llm = None
+    _index = None
+    _rag_ready = False
+    if FAISS_INDEX_DIR.exists():
+        shutil.rmtree(FAISS_INDEX_DIR)
+
+
 def initialize_rag_once() -> None:
     global _llm, _index, _csv_loader, _rag_ready
 
@@ -467,6 +543,7 @@ def initialize_rag_once() -> None:
         _index.load_index()
     except FileNotFoundError:
         ingest_files_data_folder(_index)
+        ingest_uploaded_documents(_index)
         _index.save_index()
 
     products_path = APP_DIR / "data" / "sustainable_products.csv"
@@ -583,12 +660,11 @@ def rag_answer(message: str, chat_history: list[Any] | None) -> str:
 
 
 def list_indexed_documents() -> str:
-    supported = {".pdf", ".html", ".htm", ".docx", ".pptx", ".csv"}
     lines = ["### Current documents"]
-    for folder, label in ((APP_DIR / "data", "Data folder"), (APP_DIR / "uploaded_documents", "Uploaded")):
+    for folder, label in ((APP_DIR / "data", "Data folder"), (UPLOADED_DOCUMENTS_DIR, "Uploaded for all chats")):
         if not folder.exists():
             continue
-        files = sorted(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in supported)
+        files = sorted(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_DOCUMENT_EXTENSIONS)
         if files:
             lines.append(f"\n**{label}**")
             lines.extend(f"- `{path.name}`" for path in files)
@@ -597,26 +673,57 @@ def list_indexed_documents() -> str:
     return "\n".join(lines)
 
 
-def upload_document(file):
-    if file is None:
-        return "Choose a file first.", list_indexed_documents()
+def upload_documents(files):
+    if not files:
+        return "Choose at least one file first.", list_indexed_documents(), uploaded_document_dropdown_update()
 
-    source_path = Path(getattr(file, "name", file))
-    if not source_path.exists():
-        return "Could not read the uploaded file.", list_indexed_documents()
+    if not isinstance(files, list):
+        files = [files]
 
-    supported = {".pdf", ".html", ".htm", ".docx", ".pptx", ".csv"}
-    if source_path.suffix.lower() not in supported:
-        return "Unsupported file type. Use PDF, HTML, DOCX, PPTX or CSV.", list_indexed_documents()
+    saved_names = []
+    skipped_names = []
+    for file in files:
+        source_path = Path(getattr(file, "name", file))
+        if not source_path.exists() or source_path.suffix.lower() not in SUPPORTED_DOCUMENT_EXTENSIONS:
+            skipped_names.append(source_path.name if source_path.name else "unknown file")
+            continue
 
-    upload_dir = APP_DIR / "uploaded_documents"
-    upload_dir.mkdir(exist_ok=True)
-    destination = upload_dir / source_path.name
-    shutil.copy2(source_path, destination)
+        destination = make_unique_upload_path(source_path.name)
+        shutil.copy2(source_path, destination)
+        saved_names.append(destination.name)
+
+    if saved_names:
+        reset_rag_index_after_document_change()
+
+    status_parts = []
+    if saved_names:
+        status_parts.append(f"Saved for all chats: {', '.join(f'`{name}`' for name in saved_names)}.")
+        status_parts.append("The knowledge index will include them on the next answer.")
+    if skipped_names:
+        status_parts.append(f"Skipped unsupported/unreadable files: {', '.join(f'`{name}`' for name in skipped_names)}.")
+    if not status_parts:
+        status_parts.append("No files were saved.")
+
+    selected_name = saved_names[0] if saved_names else None
+    return " ".join(status_parts), list_indexed_documents(), uploaded_document_dropdown_update(selected_name)
+
+
+def delete_uploaded_document(filename: str | None):
+    if not filename:
+        return "Choose an uploaded document to delete.", list_indexed_documents(), uploaded_document_dropdown_update()
+
+    target = (UPLOADED_DOCUMENTS_DIR / filename).resolve()
+    uploads_root = UPLOADED_DOCUMENTS_DIR.resolve()
+    if uploads_root not in target.parents or not target.exists() or not target.is_file():
+        return "Could not find that uploaded document.", list_indexed_documents(), uploaded_document_dropdown_update()
+
+    target.unlink()
+    reset_rag_index_after_document_change()
 
     return (
-        f"Saved `{source_path.name}` to `uploaded_documents/`. Re-indexing can be added after the demo flow.",
+        f"Deleted `{filename}`. The knowledge index will be rebuilt without it on the next answer.",
         list_indexed_documents(),
+        uploaded_document_dropdown_update(),
     )
 
 
@@ -1118,9 +1225,21 @@ def create_interface() -> gr.Blocks:
 
                         with gr.Tab("Documents"):
                             gr.Markdown("### Upload New Documents")
-                            file_upload = gr.File(label="Upload PDF, HTML, DOCX, PPTX or CSV files", file_types=[".pdf", ".html", ".docx", ".pptx", ".csv"])
-                            upload_btn = gr.Button("Upload document", elem_classes=["primary-action"])
+                            file_upload = gr.File(
+                                label="Upload PDF, HTML, DOCX, PPTX or CSV files",
+                                file_types=[".pdf", ".html", ".docx", ".pptx", ".csv"],
+                                file_count="multiple",
+                            )
+                            upload_btn = gr.Button("Upload documents", elem_classes=["primary-action"])
                             upload_status = gr.Markdown("", elem_classes=["status-line"])
+                            gr.Markdown("### Uploaded Documents")
+                            uploaded_document_select = gr.Dropdown(
+                                label="Saved for all chats",
+                                choices=uploaded_document_choices(),
+                                value=uploaded_document_choices()[0][1] if uploaded_document_choices() else None,
+                                interactive=True,
+                            )
+                            delete_uploaded_document_btn = gr.Button("Delete selected document", elem_classes=["danger-action"])
                             documents_list = gr.Markdown(list_indexed_documents())
 
                         with gr.Tab("Settings"):
@@ -1167,7 +1286,16 @@ def create_interface() -> gr.Blocks:
         message_box.submit(send_message, inputs=[message_box, chatbot, current_user, active_conversation_id], outputs=send_outputs)
         clear_chat_btn.click(clear_conversation, inputs=[current_user, active_conversation_id], outputs=[chatbot, active_conversation_id, conversation_select, rename_input, chat_status])
         export_chat_btn.click(export_conversation, inputs=[current_user, active_conversation_id], outputs=[export_status, export_file])
-        upload_btn.click(upload_document, inputs=[file_upload], outputs=[upload_status, documents_list])
+        upload_btn.click(
+            upload_documents,
+            inputs=[file_upload],
+            outputs=[upload_status, documents_list, uploaded_document_select],
+        )
+        delete_uploaded_document_btn.click(
+            delete_uploaded_document,
+            inputs=[uploaded_document_select],
+            outputs=[upload_status, documents_list, uploaded_document_select],
+        )
         save_settings_btn.click(update_rag_settings, inputs=[num_chunks, show_sources, temperature], outputs=[settings_status])
 
     return app
